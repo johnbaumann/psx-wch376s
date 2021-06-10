@@ -17,7 +17,8 @@ volatile u_short priority = 10;
 void DrawWindow(GsOT *gsot_header, int x, int y, u_short width, u_short height)
 {
     GsBOXF window_boxes[3];
-    u_short priority_local = priority;
+    priority = 10; // priority as global, unexpected results
+    //u_short priority = 10; // priority as local, "works"(but needs to be tracked between calls, so not right)
 
     // Box 1
     window_boxes[0].w = width;
@@ -27,7 +28,7 @@ void DrawWindow(GsOT *gsot_header, int x, int y, u_short width, u_short height)
     window_boxes[0].r = 93;
     window_boxes[0].g = 93;
     window_boxes[0].b = 128;
-    GsSortBoxFill(&window_boxes[0], gsot_header, priority_local--);
+    GsSortBoxFill(&window_boxes[0], gsot_header, priority--);
     // Box 1
 
     // Box 2
@@ -38,7 +39,7 @@ void DrawWindow(GsOT *gsot_header, int x, int y, u_short width, u_short height)
     window_boxes[1].r = 71;
     window_boxes[1].g = 71;
     window_boxes[1].b = 150;
-    GsSortBoxFill(&window_boxes[1], gsot_header, priority_local--);
+    GsSortBoxFill(&window_boxes[1], gsot_header, priority--);
     // Box 2
 
     // Box 3
@@ -49,12 +50,10 @@ void DrawWindow(GsOT *gsot_header, int x, int y, u_short width, u_short height)
     window_boxes[2].r = 0;
     window_boxes[2].g = 0;
     window_boxes[2].b = 0;
-    GsSortBoxFill(&window_boxes[2], gsot_header, priority_local--);
+    GsSortBoxFill(&window_boxes[2], gsot_header, priority--);
     // Box 3
 
     GsDrawOt(gsot_header);
     DrawSync(0);
     GsClearOt(0, 0, gsot_header);
-
-    priority = priority_local;
 }
