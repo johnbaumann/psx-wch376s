@@ -70,7 +70,7 @@ static void DetectConsoleRegion()
 void DisplayAll()
 {
     int active_buffer = GsGetActiveBuff();
-    priority = 2;
+    priority = 10;
 
     FntFlush(-1);
     GsSetWorkBase((PACKET *)packet_area[active_buffer]);
