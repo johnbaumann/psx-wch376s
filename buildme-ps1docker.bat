@@ -1,0 +1,1 @@
+call dockermake.bat -f Makefile all

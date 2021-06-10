@@ -1,0 +1,48 @@
+{
+	"folders": [
+		{
+			"path": "..\\."
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			".vs": true,
+			"build/x64": true,
+			"build/x86": true,
+			"thirdparty/**": true,
+			"vsprojects": true,
+			"Win32": true,
+			"**/windows": true,
+			"**/comport.txt": true,
+			"**.config": true,
+			"**.vcxproj*": true,
+			"**/*.dep": true,
+			"**.git**": true,
+			"**/*.o": true,
+			"**.sln": true,
+			"**/*.ps-exe": true,
+			"**/*.map": true,
+			"**/*.elf": true,
+			"**.mcd": true,
+			"**.ini": true,
+			"pcsx.json": true,
+			"**.bat": true,
+			"**.sh": true
+		},
+		"C_Cpp.default.includePath": [
+			"${workspaceFolder}/thirdparty/nugget/psyq/include",
+			"${workspaceFolder}/thirdparty/nugget/common",
+			"${workspaceFolder}/include"
+		],
+		"C_Cpp.default.defines": [],
+		"C_Cpp.default.cStandard": "c11",
+		"C_Cpp.default.cppStandard": "c++17",
+		"files.associations": {
+			"filesystem.h": "c",
+			"stdbool.h": "c",
+			"libetc.h": "c",
+			"variabletypes.h": "c",
+			"libgpu.h": "c"
+		}
+	}
+}

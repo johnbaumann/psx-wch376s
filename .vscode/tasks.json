@@ -1,0 +1,153 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build(GCC)",
+            "type": "shell",
+            "windows": {
+                "command": "make",
+                "options": {
+                    "cwd": "${workspaceFolder}"
+                }
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build(Docker)",
+            "type": "shell",
+            "windows": {
+                "command": ".\\buildme-ps1docker.bat",
+                "options": {
+                    "cwd": "${workspaceFolder}"
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Clean(Docker)",
+            "type": "shell",
+            "windows": {
+                "command": ".\\cleanup-ps1docker.bat",
+                "options": {
+                    "cwd": "${workspaceFolder}"
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Rebuild(Docker)",
+            "type": "shell",
+            "windows": {
+                "command": ".\\rebuild-ps1docker.bat",
+                "options": {
+                    "cwd": "${workspaceFolder}"
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Rebuild(GCC)",
+            "type": "shell",
+            "windows": {
+                "command": "make clean all",
+                "options": {
+                    "cwd": "${workspaceFolder}"
+                },
+                "args": []
+            },
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Clean(GCC)",
+            "type": "shell",
+            "windows": {
+                "command": "make clean",
+                "options": {
+                    "cwd": "${workspaceFolder}"
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Launch PCSX-Redux",
+            "type": "shell",
+            "windows": {
+                "command": ".\\pcsx-redux.exe",
+                "options": {
+                    // Set this to the location of your pcsx-redux executable
+                    "cwd": "C:/Users/John/source/repos/pcsx-redux/vsprojects/x64/Release/"
+                },
+                "args": ["-pcdrv -pcdrvbase \"${workspaceFolder\""]
+            },
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run nops",
+            "type": "shell",
+            "windows": {
+                // Assumes nops is on the PATH
+                "command": "nops /fast /exe main.ps-exe /m",
+                "options": {
+                    "cwd": "${workspaceFolder}"
+                }
+            },
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Set nops debug",
+            "type": "shell",
+            "windows": {
+                "command": "nops /debug",
+                "options": {
+                    "cwd": "${workspaceFolder}"
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+    ]
+}
