@@ -7,19 +7,19 @@
 #include <libgte.h>
 #include <libgpu.h>
 #include <libgs.h>
+#include <stdio.h>
 
 RECT mouse_cursor_rect;
 GsIMAGE mouse_cursor_image;
 GsSPRITE mouse_cursor_sprite;
 
-volatile u_short priority = 10;
+GsBOXF window_boxes[3];
+
+
+volatile u_short priority;
 
 void DrawWindow(GsOT *gsot_header, int x, int y, u_short width, u_short height)
 {
-    GsBOXF window_boxes[3];
-    priority = 10; // priority as global, unexpected results
-    //u_short priority = 10; // priority as local, "works"(but needs to be tracked between calls, so not right)
-
     // Box 1
     window_boxes[0].w = width;
     window_boxes[0].h = height;
@@ -52,8 +52,4 @@ void DrawWindow(GsOT *gsot_header, int x, int y, u_short width, u_short height)
     window_boxes[2].b = 0;
     GsSortBoxFill(&window_boxes[2], gsot_header, priority--);
     // Box 3
-
-    GsDrawOt(gsot_header);
-    DrawSync(0);
-    GsClearOt(0, 0, gsot_header);
 }

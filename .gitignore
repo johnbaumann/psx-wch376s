@@ -6,15 +6,15 @@
 *.sln.docstates
 *.userprefs
 
-thirdparty/psyq/*
+thirdparty/nugget/psyq/*
 Win32
 x64
 
-build/ps1/*.elf
-build/ps1/*.ps-exe
-build/ps1/*.exe
-build/ps1/*.map
-build/ps1/comport.txt
+*.elf
+*.ps-exe
+*.exe
+*.map
+comport.txt
 *.o
 *.dep
 
