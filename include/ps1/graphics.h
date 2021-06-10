@@ -7,7 +7,6 @@
 #include <libgs.h>
 #include <stdint.h>
 
-extern uint8_t screen_tim[];
 extern volatile uint8_t vsync_counter;
 extern volatile uint8_t frame_count;
 extern volatile uint8_t frame_rate;

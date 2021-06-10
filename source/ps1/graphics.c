@@ -36,8 +36,6 @@ u_short display_height;
 
 static void DetectConsoleRegion();
 
-
-
 void _VSyncCallback()
 {
     vsync_counter++;
@@ -70,16 +68,17 @@ static void DetectConsoleRegion()
 void DisplayAll()
 {
     int active_buffer = GsGetActiveBuff();
-    priority = 10;
+    priority = ORDERING_TABLE_LENGTH - 1;
 
     FntFlush(-1);
     GsSetWorkBase((PACKET *)packet_area[active_buffer]);
     GsClearOt(0, 0, &gsot_header[active_buffer]);
 
     // Begin Drawing
+
+    // To Do, dynamic per window z-depth
     DrawWindow(&gsot_header[active_buffer], 10, 50, 100, 50);
     DrawWindow(&gsot_header[active_buffer], 0, 20, 100, 50);
-    
     DrawWindow(&gsot_header[active_buffer], 100, 150, 100, 50);
     // End Drawing
 
