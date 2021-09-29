@@ -122,7 +122,7 @@
             "type": "shell",
             "windows": {
                 // Assumes nops is on the PATH
-                "command": "nops /fast /exe main.ps-exe /m",
+                "command": "nops /fast /exe main.exe",
                 "options": {
                     "cwd": "${workspaceFolder}"
                 }

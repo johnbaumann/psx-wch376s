@@ -5,17 +5,36 @@
 #include <libgte.h>
 #include <libgpu.h>
 #include <libgs.h>
+#include <stdbool.h>
 #include <stdint.h>
 
-extern volatile uint8_t vsync_counter;
-extern volatile uint8_t frame_count;
-extern volatile uint8_t frame_rate;
+typedef struct ColorRGB
+{
+    uint8_t R;
+    uint8_t G;
+    uint8_t B;
+} ColorRGB;
 
-void _VSyncCallback();
-void InitGraphics();
-void InitScreenTexture();
-void InitSprite(GsIMAGE *im, GsSPRITE *sp);
-void DisplayAll();
-void UpdateScreenTexture();
+typedef struct Theme
+{
+    ColorRGB BG;
+    ColorRGB Border;
+    ColorRGB ActiveTitle;
+    ColorRGB InactiveTitle;
+} Theme;
+
+typedef struct Window
+{
+    RECT rect;
+    char title[64];
+    bool visible;
+} Window;
+
+void DrawWindow(Window window);
+void InitFont(void);
+void InitGraphics(void);
+void InitTheme(void);
+void display(void);
+void LoadTexture(u_long *tim_data, TIM_IMAGE * tim_image);
 
 #endif // _GRAPHICS_H_

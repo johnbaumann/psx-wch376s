@@ -1,18 +1,24 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
-
 # to include the font data and various other parts
 # without converting them to header files
-	
+
+# Set section address range and flags, section contains data
 	.section .text.wrapper, "x", @progbits
-	
+# Store current settings
 	.set push
+# Don't reorder data/instructions?
 	.set noreorder
-    
-	.align 4			
+
+# Declare object(s) global
+	.global font_data
+
+	.align 4 # Advance location counter to next word-alignment
+
+font_data:
+		.incbin "../../assets/8X8FONT.TIM"
+		.align 4 # Advance location counter to next word-alignment
 
 
+# Restore previous settings
 	.set pop
 
 

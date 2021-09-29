@@ -1,29 +1,18 @@
 #include "ps1/graphics.h"
 
-#include "ps1/gui.h"
-
 #include <sys/types.h>
-#include <libetc.h>
-#include <libgte.h>
-#include <libgpu.h>
-#include <libgs.h>
 #include <stdio.h>
-#include <libapi.h>
-#include <stdint.h>
+#include <libgte.h>
+#include <libetc.h>
+#include <libgpu.h>
+#include <stdbool.h>
+#include <strings.h>
 
-#define ORDERING_TABLE_LENGTH 10
-#define PACKETMAX 300
+#define VMODE MODE_NTSC // Video Mode : 0 : NTSC, 1: PAL / MODE_NTSC
 
-enum color_mode
-{
-    sixteen_bit = 0,
-    twentyfour_bit = 1
-};
+#define WINDOW_COUNT 10
 
-GsOT gsot_header[2];
-GsOT_TAG gsot_tag[2][1 << ORDERING_TABLE_LENGTH];
-
-PACKET packet_area[2][PACKETMAX];
+#define OTLEN 1024 // Ordering Table Length
 
 volatile uint8_t vsync_counter;
 uint8_t vsyncs_per_second;
@@ -31,139 +20,255 @@ uint8_t vsyncs_per_second;
 volatile uint8_t frame_count;
 volatile uint8_t frame_rate;
 
-u_short display_width;
-u_short display_height;
+int screen_height;
+int screen_width;
 
-static void DetectConsoleRegion();
+Theme theme;
+Window windows[WINDOW_COUNT];
+u_char window_index;
+u_char active_window = 1;
 
-void _VSyncCallback()
+TILE window_tile[WINDOW_COUNT][3]; // 3 tiles per window: Border, bg, titlebar
+
+DISPENV disp[2]; // Double buffered DISPENV and DRAWENV
+DRAWENV draw[2];
+u_long ot[2][OTLEN]; // double ordering table of length 8 * 32 = 256 bits / 32 bytes
+uint8_t db = 0;      // index of which buffer is used, values 0, 1
+
+int z_depth;
+
+TIM_IMAGE test_image;
+extern u_long font_data[];
+
+char primbuff[2][32768] = {1};
+char *nextpri = primbuff[0];
+DR_TPAGE *tpage_4b;
+SPRT *sprt_4b;
+
+void InitWindows(void);
+
+void DrawChar(uint8_t character, int x_pos, int y_pos)
 {
-    vsync_counter++;
-    if (vsync_counter >= vsyncs_per_second)
+    uint16_t glyph_index;
+
+    if (character < 32 || character > 126)
     {
-        frame_rate = frame_count;
-        frame_count = 0;
-        vsync_counter = 0;
+        glyph_index = 0;
     }
+    else
+    {
+        glyph_index = (character - 32) * 8;
+    }
+
+    sprt_4b = (SPRT *)nextpri;
+    setSprt(sprt_4b);
+    setRGB0(sprt_4b, 128, 128, 128);
+    setXY0(sprt_4b, x_pos, y_pos);
+    setWH(sprt_4b, 8, 8);
+    setUV0(sprt_4b, 8, 0);
+    setClut(sprt_4b, test_image.crect->x, test_image.crect->y);
+    addPrim(ot[db], sprt_4b);
+
+    nextpri += sizeof(SPRT);
 }
 
-static void DetectConsoleRegion()
+void DrawFont(int x, int y)
 {
-    display_width = 320;
+    //
+    sprt_4b = (SPRT *)nextpri;
+    setSprt(sprt_4b);
+    setRGB0(sprt_4b, 128, 128, 128);
+    setXY0(sprt_4b, x, y);
+    setWH(sprt_4b, 8, 8);
+    setUV0(sprt_4b, 8, 0);
+    setClut(sprt_4b, test_image.crect->x, test_image.crect->y);
+    addPrim(ot[db], sprt_4b);
 
+    nextpri += sizeof(SPRT);
+}
+
+void DrawString(char *message)
+{
+}
+
+void InitFont(void)
+{
+    LoadTexture(font_data, &test_image);
+
+    //FntLoad(960, 0);
+    //FntOpen(10, 10, SCREENXRES, SCREENYRES, 0, 280);
+}
+
+void InitGraphics(void)
+{
+    InitTheme();
+
+    ResetGraph(0);
+
+    screen_width = 640;
     if (*(char *)0xbfc7ff52 == 'E') // SCEE
     {
         SetVideoMode(MODE_PAL);
-        display_height = 256;
-        vsyncs_per_second = 50; // 50Hz
+        screen_height = 512;
+        vsyncs_per_second = 50;
     }
     else
     {
         SetVideoMode(MODE_NTSC);
-        display_height = 240;
-        vsyncs_per_second = 60; // 60Hz
+        screen_height = 480;
+        vsyncs_per_second = 60;
     }
-}   
 
-void DisplayAll()
+    InitGeom();
+    SetGeomOffset(screen_width / 2, screen_width / 2);
+    SetGeomScreen(screen_width / 2);
+
+    SetDefDispEnv(&disp[0], 0, 0, screen_width, screen_height);
+    SetDefDispEnv(&disp[1], 0, 0, screen_width, screen_height);
+
+    SetDefDrawEnv(&draw[0], 0, 0, screen_width, screen_height);
+    SetDefDrawEnv(&draw[1], 0, 0, screen_width, screen_height);
+
+    setRGB0(&draw[0], theme.BG.R, theme.BG.G, theme.BG.B);
+    setRGB0(&draw[1], theme.BG.R, theme.BG.G, theme.BG.B);
+
+    draw[0].isbg = 1;
+    draw[1].isbg = 1;
+
+    SetDispMask(1);
+
+    PutDispEnv(&disp[db]);
+    PutDrawEnv(&draw[db]);
+
+    InitFont();
+    InitWindows();
+}
+
+void InitTheme(void)
 {
-    int active_buffer = GsGetActiveBuff();
-    priority = ORDERING_TABLE_LENGTH - 1;
+    theme.BG.R = 0;
+    theme.BG.G = 0;
+    theme.BG.B = 75;
 
-    FntFlush(-1);
-    GsSetWorkBase((PACKET *)packet_area[active_buffer]);
-    GsClearOt(0, 0, &gsot_header[active_buffer]);
+    theme.Border.R = 93;
+    theme.Border.G = 93;
+    theme.Border.B = 128;
 
-    // Begin Drawing
+    theme.ActiveTitle.R = 71;
+    theme.ActiveTitle.G = 71;
+    theme.ActiveTitle.B = 150;
 
-    // To Do, dynamic per window z-depth
-    DrawWindow(&gsot_header[active_buffer], 10, 50, 100, 50);
-    DrawWindow(&gsot_header[active_buffer], 0, 20, 100, 50);
-    DrawWindow(&gsot_header[active_buffer], 100, 150, 100, 50);
-    // End Drawing
+    theme.InactiveTitle.R = 57;
+    theme.InactiveTitle.G = 57;
+    theme.InactiveTitle.B = 57;
+}
+
+void InitWindows(void)
+{
+    for (int i = 0; i < WINDOW_COUNT; i++)
+    {
+        windows[i].rect.w = 128;
+        windows[i].rect.h = 64;
+        windows[i].rect.x = 32 * i;
+        windows[i].rect.y = 32 * i;
+        windows[i].visible = true;
+        sprintf(windows[i].title, "Form%i", i);
+    }
+    window_index = 0;
+}
+
+void display(void)
+{
+    z_depth = OTLEN - 1;
+
+    ClearOTagR(ot[db], OTLEN);
+    window_index = 0;
+    active_window = WINDOW_COUNT - 1;
+
+    for (int i = 0; i < WINDOW_COUNT; i++)
+    {
+        DrawWindow(windows[i]);
+    }
+
+    //DrawWindow(360, 50, 160, 120);
+    //DrawWindow(20, 30, 320, 240);
+
+    //FntPrint("Test\n");
+    //FntFlush(-1);
 
     DrawSync(0);
-
-    frame_count++;
     VSync(0);
-    GsSwapDispBuff();
-    GsSortClear(0, 0, 77, &gsot_header[active_buffer]);
 
-    GsDrawOt(&gsot_header[active_buffer]);
+    PutDispEnv(&disp[db]);
+    PutDrawEnv(&draw[db]);
+
+    DrawOTag(ot[db] + OTLEN - 1);
+
+    db = !db;
+    nextpri = primbuff[db];
 }
 
-void InitGraphics()
+void DrawWindow(Window window)
 {
-    DetectConsoleRegion();
+    // Border box
+    setTile(&window_tile[window_index][0]);
+    setRGB0(&window_tile[window_index][0], theme.Border.R, theme.Border.G, theme.Border.B);
+    window_tile[window_index][0].x0 = window.rect.x;
+    window_tile[window_index][0].y0 = window.rect.y;
+    window_tile[window_index][0].w = window.rect.w;
+    window_tile[window_index][0].h = window.rect.h;
+    addPrim(ot[db] + z_depth, &window_tile[window_index][0]); // add poly to the Ordering table
+    z_depth--;
+    // Border box
 
-    GsInitGraph(display_width, display_height, GsNONINTER | GsOFSGPU, 1, sixteen_bit);
-    GsDefDispBuff(0, 0, 0, display_height);
+    // Background box
+    setTile(&window_tile[window_index][2]);
+    setRGB0(&window_tile[window_index][2], 0, 0, 0);
+    window_tile[window_index][2].x0 = window.rect.x + 1;
+    window_tile[window_index][2].y0 = window.rect.y + 9;
+    window_tile[window_index][2].w = window.rect.w - 2;
+    window_tile[window_index][2].h = window.rect.h - 10;
+    addPrim(ot[db] + z_depth, &window_tile[window_index][2]); // add poly to the Ordering table
+    z_depth--;
+    // Background box
 
-    gsot_header[0].length = ORDERING_TABLE_LENGTH;
-    gsot_header[1].length = ORDERING_TABLE_LENGTH;
-    gsot_header[0].org = gsot_tag[0];
-    gsot_header[1].org = gsot_tag[1];
-    GsClearOt(0, 0, &gsot_header[0]);
-    GsClearOt(0, 0, &gsot_header[1]);
+    // Title Box
+    setTile(&window_tile[window_index][1]);
+    if (window_index == active_window)
+    {
+        setRGB0(&window_tile[window_index][1], theme.ActiveTitle.R, theme.ActiveTitle.G, theme.ActiveTitle.B);
+    }
+    else
+    {
+        setRGB0(&window_tile[window_index][1], theme.InactiveTitle.R, theme.InactiveTitle.G, theme.InactiveTitle.B);
+    }
+    window_tile[window_index][1].x0 = window.rect.x + 1;
+    window_tile[window_index][1].y0 = window.rect.y + 1;
+    window_tile[window_index][1].w = window.rect.w - 2;
+    window_tile[window_index][1].h = 10;
+    addPrim(ot[db] + z_depth, &window_tile[window_index][1]); // add poly to the Ordering table
+    z_depth--;
+    // Title Box
 
-    FntLoad(960, 256);
-    FntOpen(0, 8, display_width, display_height, 0, 512);
+    // Font
+    DrawFont(window.rect.x + 2, window.rect.y + 2);
 
-    vsync_counter = 0;
-    frame_count = 0;
-    frame_rate = 0;
-    VSyncCallback(_VSyncCallback);
+    window_index++;
 }
 
-void InitSprite(GsIMAGE *im, GsSPRITE *sp)
+void LoadTexture(u_long *tim_data, TIM_IMAGE *tim_image)
 {
-    int bits;
-    int widthCompression;
-    RECT myRect;
+    OpenTIM(tim_data);
+    ReadTIM(tim_image);
 
-    bits = im->pmode & 0x03;
-    if (bits == 0)
-        widthCompression = 4;
-    else if (bits == 1)
-        widthCompression = 2;
-    else if (bits == 2)
-        widthCompression = 1;
-    else if (bits == 3)
+    LoadImage(tim_image->prect, tim_image->paddr);
+    DrawSync(0);
+
+    // Clut
+    if (tim_image->mode & 0x8)
     {
-        //printf("\nunsupported file format (24bit tim)!\n");
+        //LoadClut(tim_image.caddr, tim_image.crect->x, tim_image.crect->y);
+        LoadImage(tim_image->crect, tim_image->caddr);
+        DrawSync(0);
     }
-
-    myRect.x = im->px;
-    myRect.y = im->py;
-    myRect.w = im->pw;
-    myRect.h = im->ph;
-    LoadImage(&myRect, im->pixel); //loads image data to frame buffer
-
-    //printf("\nimage bit type =%d\n", bits);
-
-    sp->attribute = (bits << 24);
-    sp->w = im->pw * widthCompression;
-    sp->h = im->ph;
-    sp->tpage = GetTPage(bits, 0, im->px, im->py);
-    sp->u = 0;
-    sp->v = 0;
-    if (bits == 0 || bits == 1)
-    {
-        //checks if image is 4 or 8 bit
-        myRect.x = im->cx;
-        myRect.y = im->cy;
-        myRect.w = im->cw;
-        myRect.h = im->ch;
-        LoadImage(&myRect, im->clut); //loads clut to frame buffer if needed
-        sp->cx = im->cx;
-        sp->cy = im->cy;
-    }
-    sp->r = 128;
-    sp->g = 128;
-    sp->b = 128;
-    sp->mx = (im->pw * widthCompression) / 2;
-    sp->my = im->ph / 2;
-    sp->scalex = 4096;
-    sp->scaley = 4096;
-    sp->rotate = 0 * 4096;
 }

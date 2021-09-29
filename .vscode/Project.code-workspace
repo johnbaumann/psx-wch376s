@@ -42,7 +42,9 @@
 			"stdbool.h": "c",
 			"libetc.h": "c",
 			"variabletypes.h": "c",
-			"libgpu.h": "c"
+			"libgpu.h": "c",
+			"MAIN.C": "cpp",
+			"stdio.h": "c"
 		}
 	}
 }
