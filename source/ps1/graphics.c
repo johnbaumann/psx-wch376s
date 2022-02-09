@@ -9,10 +9,12 @@
 #include <strings.h>
 
 #define VMODE MODE_NTSC // Video Mode : 0 : NTSC, 1: PAL / MODE_NTSC
+#define OTLEN 1024      // Ordering Table Length
 
-#define WINDOW_COUNT 10
+#define WINDOW_COUNT 20
 
-#define OTLEN 1024 // Ordering Table Length
+#define GLYPH_WIDTH 8
+#define GLYPH_HEIGHT 8
 
 volatile uint8_t vsync_counter;
 uint8_t vsyncs_per_second;
@@ -51,25 +53,57 @@ void DrawChar(uint8_t character, int x_pos, int y_pos)
 {
     uint16_t glyph_index;
 
+    uint16_t glyph_x;
+    uint16_t glyph_y;
+
     if (character < 32 || character > 126)
     {
         glyph_index = 0;
     }
     else
     {
-        glyph_index = (character - 32) * 8;
+        glyph_index = (character - 32);
     }
+
+    glyph_x = (glyph_index % 19) * 8;
+    glyph_y = (glyph_index / 19) * 8;
 
     sprt_4b = (SPRT *)nextpri;
     setSprt(sprt_4b);
     setRGB0(sprt_4b, 128, 128, 128);
     setXY0(sprt_4b, x_pos, y_pos);
     setWH(sprt_4b, 8, 8);
-    setUV0(sprt_4b, 8, 0);
+    setUV0(sprt_4b, glyph_x, glyph_y);
     setClut(sprt_4b, test_image.crect->x, test_image.crect->y);
-    addPrim(ot[db], sprt_4b);
+    addPrim(ot[db] + z_depth, sprt_4b);
 
+    z_depth--;
     nextpri += sizeof(SPRT);
+}
+
+void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, bool auto_wrap)
+{
+    int32_t _y = y_pos;
+    int32_t _x = x_pos;
+
+    for (uint16_t i = 0; i < (uint16_t)strlen(message); i++)
+    {
+        if (message[i] == '\n')
+        {
+            _y += GLYPH_HEIGHT + 1;
+            _x = x_pos;
+            continue;
+        }
+
+        if (auto_wrap && ((_x + GLYPH_WIDTH) >= screen_width))
+        {
+            _y += GLYPH_HEIGHT + 1;
+            _x = x_pos;
+        }
+
+        DrawChar(message[i], _x, _y);
+        _x += (GLYPH_WIDTH + 1);
+    }
 }
 
 void DrawFont(int x, int y)
@@ -85,10 +119,6 @@ void DrawFont(int x, int y)
     addPrim(ot[db], sprt_4b);
 
     nextpri += sizeof(SPRT);
-}
-
-void DrawString(char *message)
-{
 }
 
 void InitFont(void)
@@ -169,10 +199,10 @@ void InitWindows(void)
     {
         windows[i].rect.w = 128;
         windows[i].rect.h = 64;
-        windows[i].rect.x = 32 * i;
-        windows[i].rect.y = 32 * i;
-        windows[i].visible = true;
-        sprintf(windows[i].title, "Form%i", i);
+        windows[i].rect.x = (16 * i) % screen_width;
+        windows[i].rect.y = (16 * i) % screen_height;
+                windows[i].visible = true;
+        sprintf(windows[i].title, "Window #%i", i);
     }
     window_index = 0;
 }
@@ -250,8 +280,14 @@ void DrawWindow(Window window)
     z_depth--;
     // Title Box
 
-    // Font
-    DrawFont(window.rect.x + 2, window.rect.y + 2);
+    // Title text
+    DrawMessage(window.title, window.rect.x + 2 + 10, window.rect.y + 2, false);
+
+    // Close window button = x
+    DrawChar('x', window.rect.x + window.rect.w - 2 - GLYPH_WIDTH, window.rect.y + 1);
+
+    // Minimize window button = ^
+    DrawChar('^', window.rect.x + 2, window.rect.y + 4);
 
     window_index++;
 }
