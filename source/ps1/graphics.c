@@ -47,6 +47,9 @@ char *nextpri = primbuff[0];
 DR_TPAGE *tpage_4b;
 SPRT *sprt_4b;
 
+char menu_index = 0;
+char log_buffer[20][64];
+
 void InitWindows(void);
 
 void DrawChar(uint8_t character, int x_pos, int y_pos)
@@ -135,17 +138,18 @@ void InitGraphics(void)
 
     ResetGraph(0);
 
-    screen_width = 640;
+    screen_width = 512;
     if (*(char *)0xbfc7ff52 == 'E') // SCEE
     {
         SetVideoMode(MODE_PAL);
-        screen_height = 512;
+        //screen_height = 256;
+        screen_height = 240;
         vsyncs_per_second = 50;
     }
     else
     {
         SetVideoMode(MODE_NTSC);
-        screen_height = 480;
+        screen_height = 240;
         vsyncs_per_second = 60;
     }
 
@@ -154,10 +158,10 @@ void InitGraphics(void)
     SetGeomScreen(screen_width / 2);
 
     SetDefDispEnv(&disp[0], 0, 0, screen_width, screen_height);
-    SetDefDispEnv(&disp[1], 0, 0, screen_width, screen_height);
+    SetDefDispEnv(&disp[1], 0, screen_height, screen_width, screen_height);
 
     SetDefDrawEnv(&draw[0], 0, 0, screen_width, screen_height);
-    SetDefDrawEnv(&draw[1], 0, 0, screen_width, screen_height);
+    SetDefDrawEnv(&draw[1], 0, screen_height, screen_width, screen_height);
 
     setRGB0(&draw[0], theme.BG.R, theme.BG.G, theme.BG.B);
     setRGB0(&draw[1], theme.BG.R, theme.BG.G, theme.BG.B);
@@ -209,22 +213,11 @@ void InitWindows(void)
 
 void display(void)
 {
+    char menu_glyph = ' ';
+    char print_buffer[64];
     z_depth = OTLEN - 1;
 
     ClearOTagR(ot[db], OTLEN);
-    window_index = 0;
-    active_window = WINDOW_COUNT - 1;
-
-    for (int i = 0; i < WINDOW_COUNT; i++)
-    {
-        DrawWindow(windows[i]);
-    }
-
-    //DrawWindow(360, 50, 160, 120);
-    //DrawWindow(20, 30, 320, 240);
-
-    //FntPrint("Test\n");
-    //FntFlush(-1);
 
     DrawSync(0);
     VSync(0);

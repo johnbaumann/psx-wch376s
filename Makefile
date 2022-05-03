@@ -12,13 +12,14 @@ thirdparty/nugget/common/crt0/crt0.s \
 
 CPPFLAGS += -Ithirdparty/nugget/psyq/include
 CPPFLAGS += -Ithirdparty/nugget/common
-CPPFLAGS += -Iinclude
+CPPFLAGS += -Isource
 LDFLAGS += -Lthirdparty/nugget/psyq/lib
 LDFLAGS += -Wl,--start-group
 LDFLAGS += -lapi
 LDFLAGS += -lc
 LDFLAGS += -lc2
 LDFLAGS += -lcard
+LDFLAGS += -lcd
 LDFLAGS += -lcomb
 LDFLAGS += -lds
 LDFLAGS += -letc

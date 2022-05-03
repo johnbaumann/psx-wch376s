@@ -32,7 +32,7 @@
 		"C_Cpp.default.includePath": [
 			"${workspaceFolder}/thirdparty/nugget/psyq/include",
 			"${workspaceFolder}/thirdparty/nugget/common",
-			"${workspaceFolder}/include"
+			"${workspaceFolder}/source"
 		],
 		"C_Cpp.default.defines": [],
 		"C_Cpp.default.cStandard": "c11",
@@ -44,7 +44,9 @@
 			"variabletypes.h": "c",
 			"libgpu.h": "c",
 			"MAIN.C": "cpp",
-			"stdio.h": "c"
+			"stdio.h": "c",
+			"libgte.h": "c",
+			"commands.h": "c"
 		}
 	}
 }
