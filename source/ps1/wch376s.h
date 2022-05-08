@@ -6,6 +6,20 @@
 
 #include <stdio.h>
 
+// Sources:
+
+// USB Flash Disk and SD Card File Management Control Chip
+// CH376
+// Datasheet
+// Version: 1A
+// http://wch.cn
+//
+// USB Flash Disk and SD Card File Management Control Chip
+// CH376
+// Datasheet (II): Auxiliary Commands and USB Basic Transmission Commands
+// Version: 1
+// http://wch.cn
+
 typedef struct
 {
     uint32_t capacity;
@@ -23,29 +37,70 @@ typedef enum
 
 typedef enum
 {
-    // SD card or USB transaction or transmission operation or file operation is successful
-    Int_Success = 0x14,
+    // 03H - Detection of USB bus reset (the bit 1 and bit 0 of interrupt status value is 11)
+    USB_INT_BUS_RESET1 = 0x03,
+    // 07H - Detection of USB bus reset (the bit 1 and bit 0 of interrupt status value is 11)
+    USB_INT_BUS_RESET2 = 0x07,
+    // 0BH - Detection of USB bus reset (the bit 1 and bit 0 of interrupt status value is 11)
+    USB_INT_BUS_RESET3 = 0x0B,
+    // 0FH - Detection of USB bus reset (the bit 1 and bit 0 of interrupt status value is 11)
+    USB_INT_BUS_RESET4 = 0x0F,
+    // 0CH - Receiver of endpoint 0 successfully receive SETUP
+    USB_INT_EP0_SETUP = 0x0C,
+    // 00H - Receiver of endpoint 0 successfully receive OUT
+    USB_INT_EP0_OUT = 0x00,
+    // 08H - Transfer of endpoint 0 successfully transfer IN
+    USB_INT_EP0_IN = 0x08,
+    // 01H - Assistant endpoint/endpoint 1 receive data, OUT successfully
+    USB_INT_EP1_OUT = 0x01,
+    // 09H - Interrupt endpoint/endpoint 1 transfer data, IN successfully
+    USB_INT_EP1_IN = 0x09,
+    // 02H - Bulk endpoint/endpoint 2 receive data, OUT successfully
+    USB_INT_EP2_OUT = 0x02,
+    // 0AH - Bulk endpoint/endpoint 2 transfer data, IN successfully
+    USB_INT_EP2_IN = 0x0A,
+    // 05H - USB bus suspending transaction (if finish CHK_SUSPEND)
+    USB_INT_USB_SUSPEND = 0x05,
+    // 06H - Wake up from sleep (if finish ENTER_SLEEP)
+    USB_INT_WAKE_UP = 0x06,
 
-    // A USB device connection event is detected
-    Int_Connect = 0x15,
+    // 14H - SD card or USB transaction or transmission operation or file operation is successful
+    USB_INT_SUCCESS = 0x14,
+    // 15H - A USB device connection event is detected
+    USB_INT_CONNECT = 0x15,
+    // 16H - A USB device disconnection event is detected
+    USB_INT_DISCONNECT = 0x16,
+    // 17H - The transmitted data is wrong or the buffer overflows due to too many data
+    USB_INT_BUF_OVER = 0x17,
+    // 18H - USB device has been initialized (USB address has been assigned)
+    USB_INT_USB_READY = 0x18,
+    // 1DH - Storage device performs read operation, and requests data read
+    USB_INT_DISK_READ = 0x1D,
+    // 1EH - Storage device performs write operation, and requests data write
+    USB_INT_DISK_WRITE = 0x1E,
+    // 1FH - Storage device operation failed
+    USB_INT_DISK_ERR = 0x1F,
 
-    // A USB device disconnection event is detected
-    Int_Disconnect = 0x16,
-
-    // The transmitted data is wrong or the buffer overflows due to too many data
-    Int_Overflow = 0x17,
-
-    // USB device has been initialized (USB address has been assigned)
-    Int_Ready = 0x18,
-
-    // Storage device performs read operation, and requests data read
-    Int_Disk_Read = 0x1D,
-
-    // Storage device performs write operation, and requests data write
-    Int_Disk_Write = 0x1E,
-
-    // Storage device operation failed
-    Int_Disk_Error = 0x1F
+    // 41H = The directory of the specified path is opened
+    ERR_OPEN_DIR = 0x41,
+    // 42H - The file of the specified path is not found. It may be a file name error
+    ERR_MISS_FILE = 0x42,
+    // 43H - The matched filename is searched, or a directory is required to be opened but a file is opened actually
+    ERR_FOUND_NAME = 0x43,
+    // 82H - The disk is not connected. It may have been disconnected
+    ERR_DISK_DISCON = 0x82,
+    // 84H - The sector of the disk is too large, and only 512 bytes is supported per sector
+    ERR_LARGE_SECTOR = 0x84,
+    // 92H - The disk partition type is not supported. The disk shall be repartitioned by the disk management tool
+    ERR_TYPE_ERROR = 0x92,
+    // A1H - The disk is not formatted, or the parameter is wrong, The disk shall be reformatted by WINDOWS using default parameters
+    ERR_BPB_ERROR = 0xA1,
+    // B1H - The disk is full of files, there is too little free space or there is no free space
+    ERR_DISK_FULL = 0xB1,
+    // B2H - There are too many files in the directory, and there are no free directory entries. It is necessary to manage the disk, The number of files in the root directory of FAT12/FAT16 shall be less than 512
+    ERR_FDT_OVER = 0xB2,
+    // B4H - The file has been closed. If it is required to be used, reopen it
+    ERR_FILE_CLOSE = 0xB4,
 } CH376_InterruptStatus;
 
 typedef enum
@@ -97,65 +152,139 @@ typedef enum
     // 03H - Enter the low-power sleep suspend state
     // Input data: none
     // Output data: none
+    //
+    // This command enables CH376 in a low-power sleep suspended state. After entering the low power state, the
+    // clock of CH376 stops vibrating, thus saving power. The low power state is not quitted until one of the
+    // following two situations is detected: first, the signal is detected on the USB bus (such as the USB host
+    // starting transmission or USB device plugging event). Second, MCU writes new commands to CH376
+    // (commands without input data, such as CMD_GET_IC_VER or CMD_ABORT_NAK). For SPI interface
+    // communication interface mode, active SCS chip selection will also cause CH376 to exit the low-power state,
+    // so MCU shall immediately disable the SCS chip selection after sending the command
+    // CMD_ENTER_SLEEP.
     ENTER_SLEEP = 0x03,
 
     // 04H - Set USB bus speed
     // Input data:  Bus speed
     // Output data: none
+    //
+    // This command is used to set USB bus speed. This command needs the input of 1 data to select the USB bus
+    // speed. 00H corresponds to 12Mbps full speed mode, 01H corresponds to 1.5MBps full speed mode
+    // (non-standard mode), and 02H corresponds to 1.5Mbps low speed mode. The USB bus speed of CH376 is
+    // 12Mbps full speed by default, and will be restored to 12Mbps full speed mode after the command
+    // CMD_SET_USB_MODE is executed to set USB working mode.
     SET_USB_SPEED = 0x04,
 
     // 05H - Execute hardware reset
     // Input data: none
     // Output data: (Wait for 35mS)
+    //
+    // This command enables CH376 to perform a hardware reset. Typically, hardware reset is completed within
+    // 35mS. In the parallel communication mode, hardware reset is generally completed within 1mS.
     RESET_ALL = 0x05,
 
     // 06H - Test the communication interface and operation status
     // Input data: Any data
     // Output data: Bitwise NOT
+    //
+    // This command is used to test the communication interface and working state to check whether CH376 is
+    // working properly. This command needs to input 1 data, which can be any data. If CH376 is working properly,
+    // the output data of CH376 will be the bitwise reverse of the input data. For example, if the input data is 57H,
+    // the output data will be A8H. In addition, CH376 with parallel communication mode normally reads the data
+    // 00H from its parallel port before receiving no command after its reset.
     CHECK_EXIST = 0x06,
 
     // 0AH - Get the data rate type of the USB device
     // Input data: Data 07H
     // Output data: Data rate type
+    //
+    // This command is used to get the data rate type of the currently connected USB device. This command
+    // requires to input one data 07H, output the data rate type. If the bit 4 is 1, the device will be 1.5Mbps low
+    // speed USB device; otherwise, it will be 12Mbps full speed USB device. This command is only valid in USB
+    // mode 5 (enabled USB host mode, not generating SOF package).
     GET_DEV_RATE = 0x0A,
 
     // 0AH - Read the specified 8-bit file system variables
     // Input data: Variable address
     // Output data: Data
+    //
+    // This command is used to read the specified 8-bit (single byte) file system variables. This command requires
+    // to input 1 data specified variable address and output the data for this variable.
     READ_VAR8 = 0x0A,
 
     // 0BH - Set the interrupt mode for SDO pin of Interrupt mode SPI
     // Input data: Data 16H, Interrupt mode
     // Output data: none
+    //
+    // This command is used to set the interrupt mode for SDO pin of SPI interface. The command requires to first
+    // input one data 16H, and then input one new interrupt mode. There are two interrupt modes: 10H disable
+    // SDO pin is used for interrupt output, and the three-state output is disabled when the SCS chip selection is
+    // invalid, so as to share the SPI bus of MCU with other devices; 90H set SDO pin is always in the output state.
+    // When the SCS chip selection is invalid, it serves as the interrupt request output, which is equivalent to the
+    // INT# pin for MCU to query the interrupt request status.
     SET_SD0_INT = 0x0B,
 
     // 0BH - Set the number of retries for USB transaction operations
     // Input data: Data 25H, Number of retries
     // Output data: none
+    //
+    // This command is used to set the number of retries for USB transaction operations. This command requires to
+    // input two data, respectively the data 25H and the number of retries.
+    // The bits 7 and 6 of the number of retries specify the processing mode when CH376 receives NAK response.
+    // If the bit 7 is 1 and the bit 6 is 0, infinite retry will be performed (the current retry can be given up through
+    // the command CMD_ABORT_NAK); if the bit 7 is 1 and the bit 6 is 1, finite retry will be performed for 3
+    // seconds around; if the bit 7 is 0, NAK will be notified to MCU as the result or processed as an error. Bits 5-0
+    // of the number of retries specify the number of retries CH376 after the USB device response timeout. If the
+    // bit is 0, retry will not be performed after timeout.
+    // The default number of retries is 8FH after chip reset or USB mode reset, so infinite retry will be performed
+    // after NAK reply, and the response is received, and 15 retries will be performed after USB device response
+    // timeout.
     SET_RETRY = 0x0B,
 
     // 0BH - Set the specified 8-bit file system variables
     // Input data: Variable address, Data
     // Output data: none
+    //
+    // This command is used to set the specified 8-bit (single byte) file system variables. This command requires to
+    // input two data, respectively the specified variable address and the specified variable data.
     WRITE_VAR8 = 0x0B,
 
     // 0CH - Get the current file length
     // Input data: Data 68H
     // Output data: File length (4)
+    //
+    // This command is used to get the length of the current file, namely the number of bytes. The command
+    // requires to input one data 68H and output the length of the file currently being opened, which is a
+    // double-word data (32 bits) expressed by 4 bytes with low bytes in front.
+    // To set the new file length, refer to the command CMD_WRITE_VAR32 in Datasheet (II) to set the variable
+    // VAR_FILE_SIZE.
     GET_FILE_SIZE = 0x0C,
 
     // 0C - Read the specified 32-bit file system variables
     // Input data: Variable address
     // Output data: Data (4 bytes)
+    //
+    // This command is used to read the specified 32-bit (4 bytes) file system variables. This command requires to
+    // input 1 data specified variable address and output the data for this variable. The variable data has a total of 4
+    // bytes, which are the lowest byte of data, the lower byte of data, the higher byte of data, and the highest byte
+    // of data.
     READ_VAR32 = 0x0C,
 
     // 0DH - Set the specified 32-bit file system variables
     // Input data: Variable address, Data (4 bytes)
     // Output data: none
+    //
+    // This command is used to set the specified 32-bit (4 bytes) file system variables. This command requires to
+    // input 5 data, respectively specified variable address, the lowest byte of variable data, lower byte of data,
+    // higher byte of data and the highest byte of data.
+    WRITE_VAR32 = 0x0D,
 
     // 0FH - Delay 100uS
     // Input data: none
     // Output data: Delay status
+    //
+    // This command is used to delay for 100uS and does not support serial port mode. The output data is 0 during
+    // delay, and is non-0 (usually the chip version number) at the end of the delay. MCU determines whether the
+    // delay is ended according to the read data.
     DELAY_100US = 0x0F,
 
     // 13H - Set USB address
@@ -166,22 +295,74 @@ typedef enum
     // 15h - Set USB working mode
     // Input data: Mode code
     // Output data: (Wait for 10uS), Operation status
+    //
+    // This command is used to set the USB device address. This command requires to input 1 data to select the
+    // address of the USB device being operated. After reset or after the USB device is connected or disconnected,
+    // the USB device address is always 00H, and MCU communicates with the USB device through the default
+    // address 00H. If MCU sets the address of the USB device through the standard USB request, it must set the
+    // same USB device address through the command, so that CH376 can communicate with the USB device
+    // through the new address.
     SET_USB_MODE = 0x15,
 
     // 16H - Check the connection status of USB device
     // Input data: none
     // Output data: (Wait for 2uS), Connection status
+    //
+    // This command is used to query the connection status of the current USB device in USB host mode. Typically,
+    // this command is completed within 2uS. After completion, USB_INT_CONNECT,
+    // USB_INT_DISCONNECT, or USB_INT_USB_READY is output. USB_INT_CONNECT indicates that the
+    // USB device is just connected or has been connected but has not been initialized. USB_INT_DISCONNECT
+    // indicates that the USB device has not been connected or has been disconnected. Status
+    // USB_INT_USB_READY indicates that USB device has been connected and initialized (USB address has
+    // been assigned). 0 indicates that the command is not completed and the status can be read later.
     TEST_CONNECT = 0x16,
 
     // 17H - Abort the retry of the current NAK.
     // Input data: none
     // Output data: none
+    //
+    // This command is used to abort the retry of the current NAK. When CH376 works in the USB host mode, by
+    // default, it will keep retrying until it returns success or error when receiving the NAK status returned by the
+    // USB device. This command can force CH376 to terminate a retry in order to perform a new operation. In
+    // addition, the command SET_RETRY can be used to set whether NAK retry is disabled.
     ABORT_NAK = 0x17,
 
-    //  22H - Get the interrupt status and cancel the interrupt request
+    // 1CH - Set the receiver for USB host endpoint
+    // Input data: Working mode
+    // Output data: (Wait for 3uS)
+    //
+    // This command is used to set either the USB host endpoint or the receiver of the endpoint 2 (OUT of device
+    // mode endpoint 2 / IN of host endpoint). This command needs to input 1 data to specify a new working mode.
+    // For example, if an IN transaction is executed, DATA0 is expected to be received and DATA1 is given up, the
+    // synchronous trigger flag of the receiver at the host endpoint must be set to 0 through this command. The byte
+    // in the corresponding working mode byte is 80H. Typically, this command is completed within 3uS.
+    SET_ENDP6 = 0x1C,
+
+    // 1DH - Set the transmitter for USB host endpoint
+    // Input data: Working mode
+    // Output data: (Wait for 3uS)
+    //
+    // This command is used to set either the USB host endpoint or the transmitter of the endpoint 2 (IN of device
+    // mode endpoint 2 / OUT of host endpoint). This command needs to input 1 data to specify a new working
+    // mode. For example, if SETUP or OUT transaction is executed and DATA0 is expected to be transmitted, the
+    // synchronous trigger flag of the transmitter at the host endpoint must be set to 0 through this command. The
+    // corresponding working mode byte is 80H. If DATA1 is expected to be transmitted, the working mode byte
+    // will be C0H. Typically, this command is completed within 3uS.
+    SET_ENDP7 = 0x1D,
+
+    // 22H - Get the interrupt status and cancel the interrupt request
+    // Input data: none
+    // Output data: Interrupt status
+    //
+    // This command is used to get the interrupt status of CH376 and notify CH376 to cancel the interrupt request.
+    // After CH376 requests an interrupt from MCU, MCU gets the interrupt status through the command, analyzes
+    // the interrupt cause and processes.
+    GET_STATUS = 0x22,
+
+    //  -
     // Input data:
     // Output data:
-    GET_STATUS = 0x22,
+    DIRTY_BUFFER = 0x25,
 
     //  -
     // Input data:
@@ -191,7 +372,7 @@ typedef enum
     //  -
     // Input data:
     // Output data:
-    WR_USB_DATA = 0x2C,
+    WR_HOST_DATA = 0x2C,
 
     //  -
     // Input data:
@@ -288,10 +469,30 @@ typedef enum
     // Output data:
     DISK_QUERY = 0x3F,
 
+    // 40H - Create a new directory and open it or open an existing directory
+    // Input data: none
+    // Output data: Generate interrupt
+    DIR_CREATE = 0x40,
+
     //  -
     // Input data:
     // Output data:
-    DIR_CREATE = 0x40,
+    CLR_STALL = 0x41,
+
+    //  -
+    // Input data:
+    // Output data:
+    SET_ADDRESS = 0x45,
+
+    //  -
+    // Input data:
+    // Output data:
+    GET_DESCR = 0x46,
+
+    //  -
+    // Input data:
+    // Output data:
+    SET_CONFIG = 0x49,
 
     //  -
     // Input data:
@@ -311,7 +512,32 @@ typedef enum
     //  -
     // Input data:
     // Output data:
+    AUTO_SETUP = 0x4D,
+
+    //  -
+    // Input data:
+    // Output data:
+    ISSUE_TKN_X = 0x4E,
+
+    //  -
+    // Input data:
+    // Output data:
     DISK_BOC_CMD = 0x50,
+
+    //  -
+    // Input data:
+    // Output data:
+    DISK_INIT = 0x51,
+
+    //  -
+    // Input data:
+    // Output data:
+    DISK_RESET = 0x52,
+
+    //  -
+    // Input data:
+    // Output data:
+    DISK_SIZE = 0x53,
 
     //  -
     // Input data:
@@ -332,6 +558,36 @@ typedef enum
     // Input data:
     // Output data:
     DISK_WR_GO = 0x57,
+
+    //  -
+    // Input data:
+    // Output data:
+    DISK_INQUIRY = 0x58,
+
+    //  -
+    // Input data:
+    // Output data:
+    DISK_READY = 0x59,
+
+    //  -
+    // Input data:
+    // Output data:
+    DISK_R_SENSE = 0x5A,
+
+    //  -
+    // Input data:
+    // Output data:
+    RD_DISK_SEC = 0x5B,
+
+    //  -
+    // Input data:
+    // Output data:
+    WR_DISK_SEC = 0x5C,
+
+    //  -
+    // Input data:
+    // Output data:
+    DISK_MAX_LUN = 0x5D,
 } CH376_Command;
 
 static void delay1us();
@@ -359,7 +615,7 @@ void CH376_ResetAll();
 uint8_t CH376_CheckExists(uint8_t data);
 // --
 uint8_t CH376_GetStatus();
-bool CH376_WaitInt(uint32_t delayMS);
+bool CH376_WaitInt(CH376_InterruptStatus target_int, uint32_t retry_count);
 bool CH376_SetUSBMode(CH376_USB_Mode mode);
 uint8_t CH376_ReadUSBData(uint8_t *buffer);
 void CH376_SetFileName(uint8_t *name, uint32_t length);
@@ -368,7 +624,6 @@ bool CH376_FileOpen();
 uint32_t CH376_DiskCapacity();
 DiskInfo CH376_QueryDisk();
 bool CH376_CreateDirectory();
-
 
 const uint32_t base_address = 0x1F060008;
 static volatile uint8_t *command_register = (uint8_t *)(base_address + 1);
@@ -473,16 +728,87 @@ uint8_t CH376_GetStatus()
     return CH376_ReadData();
 }
 
-bool CH376_WaitInt(uint32_t delayMS)
+static bool between(uint8_t val, uint8_t beg, uint8_t end)
 {
-    for (int i = 0; i < delayMS; i++)
+    return (val >= beg && val <= end);
+}
+
+bool CH376_WaitInt(CH376_InterruptStatus target_int, uint32_t retry_count)
+{
+    uint8_t result;
+    for (int i = 0; i < retry_count; i++)
     {
-        if (CH376_GetStatus() == Int_Success)
-            return true;
+        result = CH376_GetStatus();
+
+        /*if (between(result, 0x00, 0x0F))
+        {
+            // Please refer to CH372 Datasheet for the interrupt status in USB device mode.
+            printf("%02X Please refer to CH372 Datasheet for the interrupt status in USB device mode.\n", result);
+        }*/
+        if (between(result, 0x10, 0x1F))
+        {
+            // Operation interrupt status in SD card or USB host mode
+
+            switch (result)
+            {
+            case USB_INT_SUCCESS:
+            case USB_INT_CONNECT:
+            case USB_INT_DISCONNECT:
+            case USB_INT_USB_READY:
+            case USB_INT_DISK_READ:
+            case USB_INT_DISK_WRITE:
+            default:
+                return true;
+                break;
+
+            case USB_INT_DISK_ERR:
+            case USB_INT_BUF_OVER:
+                return false;
+                break;
+            }
+        }
+        else if (between(result, 0x20, 0x3F))
+        {
+            // Communication failure status in USB host mode, used to analyze the cause of operation failure
+            switch(result)
+            {
+                case ERR_OPEN_DIR:
+                case ERR_FOUND_NAME:
+                return true;
+                break;
+
+                case ERR_MISS_FILE:
+                case ERR_DISK_DISCON:
+                case ERR_LARGE_SECTOR:
+                case ERR_TYPE_ERROR:
+                case ERR_BPB_ERROR:
+                case ERR_DISK_FULL:
+                case ERR_FDT_OVER:
+                case ERR_FILE_CLOSE:
+                return false;
+                break;
+            }
+        }
+        else if (between(result, 0x40, 0x4F))
+        {
+            // File system warning codes in SD card or USB host file mode
+        }
+        else if (between(result, 0x80, 0xBF))
+        {
+            // File system error codes in SD card or USB host file mode
+            return false;
+        }
+
+        // if (result & 0x20)
+        // {
+        //     printf("%02X Failure bit set\n", result);
+        //     return false;
+        // }
 
         DelayMilliseconds(1);
     }
 
+    //printf("%02X\n", result);
     return false;
 }
 
@@ -522,8 +848,10 @@ void CH376_SetFileName(uint8_t *name, uint32_t length)
     {
         CH376_WriteData(name[i]);
         if (name[i] == '\0')
-            break;
+            return;
     }
+
+    CH376_WriteData('\0');
 }
 
 bool CH376_MountDisk()
@@ -531,18 +859,33 @@ bool CH376_MountDisk()
     uint8_t result;
 
     CH376_WriteCommand(DISK_MOUNT);
+    DelayMilliseconds(130);
 
-    return CH376_WaitInt(3000);
+    return CH376_WaitInt(USB_INT_SUCCESS, 3000);
 }
 
 bool CH376_FileOpen()
 {
     CH376_WriteCommand(FILE_OPEN);
+    // DelayMilliseconds(100);
 
-    if (CH376_WaitInt(3000))
+    if (CH376_WaitInt(USB_INT_DISK_READ, 3000))
         return true;
     else
         return false;
+    return true;
+}
+
+bool CH376_FileEnumGo()
+{
+    CH376_WriteCommand(FILE_ENUM_GO);
+    DelayMilliseconds(100);
+
+    /*if (CH376_WaitInt(USB_INT_DISK_READ, 3000))
+        return true;
+    else
+        return false;
+    return true;*/
 }
 
 uint32_t CH376_DiskCapacity()
@@ -554,13 +897,13 @@ uint32_t CH376_DiskCapacity()
 
     CH376_WriteCommand(DISK_CAPACITY);
 
-    if (CH376_WaitInt(3000))
+    if (CH376_WaitInt(USB_INT_SUCCESS, 3000))
     {
         buffer_length = CH376_ReadUSBData(buffer);
 
         for (int i = 0; i < 4; i++)
         {
-            disk_capacity |= buffer[i] << (i*8);
+            disk_capacity |= buffer[i] << (i * 8);
         }
     }
     return disk_capacity;
@@ -573,31 +916,50 @@ DiskInfo CH376_QueryDisk()
 
     DiskInfo out;
     CH376_WriteCommand(DISK_QUERY);
+    DelayMilliseconds(3);
 
-    if (CH376_WaitInt(3000))
+    if (CH376_WaitInt(USB_INT_SUCCESS, 3000))
     {
         buffer_length = CH376_ReadUSBData(buffer);
 
         out.capacity = 0;
         for (int i = 0; i < 4; i++)
         {
-            out.capacity |= buffer[i] << (i*8);
+            out.capacity |= buffer[i] << (i * 8);
         }
 
         out.available = 0;
         for (int i = 4; i < 8; i++)
         {
-            out.available |= buffer[i] << (i*8);
+            out.available |= buffer[i] << (i * 8);
         }
     }
     return out;
 }
 
+bool CH376_FileErase()
+{
+    CH376_WriteCommand(FILE_ERASE);
+    DelayMilliseconds(100);
+
+    return CH376_WaitInt(USB_INT_SUCCESS, 3000);
+}
+
+bool CH376_FileClose()
+{
+    CH376_WriteCommand(FILE_CLOSE);
+    CH376_WriteData(0);
+    DelayMilliseconds(100);
+
+    return CH376_WaitInt(ERR_FILE_CLOSE, 3000);
+}
+
 bool CH376_CreateDirectory()
 {
     CH376_WriteCommand(DIR_CREATE);
+    DelayMilliseconds(100);
 
-    if (CH376_WaitInt(3000))
+    if (CH376_WaitInt(ERR_FILE_CLOSE, 100))
         return true;
     else
         return false;
