@@ -1,4 +1,4 @@
-TARGET = main
+TARGET = wch376s-demo
 TYPE = exe
 
 SRCS = source/ps1/main.c \

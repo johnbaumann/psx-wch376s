@@ -11,7 +11,7 @@
 #define VMODE MODE_NTSC // Video Mode : 0 : NTSC, 1: PAL / MODE_NTSC
 #define OTLEN 1024      // Ordering Table Length
 
-#define WINDOW_COUNT 20
+#define WINDOW_COUNT 1
 
 #define GLYPH_WIDTH 8
 #define GLYPH_HEIGHT 8
@@ -138,7 +138,7 @@ void InitGraphics(void)
 
     ResetGraph(0);
 
-    screen_width = 512;
+    screen_width = 320;
     if (*(char *)0xbfc7ff52 == 'E') // SCEE
     {
         SetVideoMode(MODE_PAL);
@@ -218,6 +218,13 @@ void display(void)
     z_depth = OTLEN - 1;
 
     ClearOTagR(ot[db], OTLEN);
+
+    window_index = 0;
+    active_window = WINDOW_COUNT - 1;
+    for (int i = 0; i < WINDOW_COUNT; i++)
+    {
+        DrawWindow(windows[i]); // Draw all windows
+    }
 
     DrawSync(0);
     VSync(0);

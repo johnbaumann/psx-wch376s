@@ -8,7 +8,10 @@
 #include <memory.h>
 
 #include "ps1/graphics.h"
+#include "ps1/pads.h"
 #include "ps1/wch376s.h"
+
+volatile bool demo_active = true;
 
 void PrintDeviceInfo()
 {
@@ -42,8 +45,6 @@ void PrintDeviceInfo()
 
 int main(void)
 {
-    // InitGraphics();
-
     uint8_t result;
     uint8_t buffer[1024];
     uint8_t buffer_length;
@@ -55,8 +56,18 @@ int main(void)
     uint8_t USBDirectory[255][32]; // holds the directory listing - max 255 files
     uint8_t file_count;            // number of files in the directory
 
+    // Initialize the graphics
+    InitGraphics();
+
+    // Initialize pads
+    InitPads();
+    
+    // Initialize the CH376S by resetting the device
+    
+    /*
     CH376_ResetAll();
 
+    // Check if the device is connected
     if (!CH376_CheckIfExists())
     {
         //printf("No CH376 found\n");
@@ -91,14 +102,18 @@ int main(void)
                 if (disk_info.capacity > 0)
                 {
                     //printf("Succesfully queried disk\n");
+
+                    // Calculate the disk size available in MB
                     disk_size_temp = (uint64_t)disk_info.available;
                     disk_size_temp *= 512;
                     disk_size_temp >>= 20;
-                    //printf("Available: %iMB\n", (uint32_t)disk_size_temp);
+                    printf("Available: %iMB\n", (uint32_t)disk_size_temp);
+
+                    // Calculate the disk capacity in MB
                     disk_size_temp = disk_info.capacity;
                     disk_size_temp *= 512;
                     disk_size_temp >>= 20;
-                    //printf("Capacity: %iMB\n", (uint32_t)disk_size_temp);
+                    printf("Capacity: %iMB\n", (uint32_t)disk_size_temp);
 
                     CH376_SetFileName(path, strlen(path));
                     //printf("path = %s, strlen = %i\n", path, strlen(path));
@@ -121,7 +136,6 @@ int main(void)
                             CH376_FileEnumGo();
                         }
 
-                        //printf("File close\n");
                         CH376_FileClose();
 
                         if(file_count > 0)
@@ -166,12 +180,15 @@ int main(void)
             //printf("USB mode not set\n");
         }
     }
+    */
 
-    /*while (1)
+    printf("Entering main loop\n");
+    while (demo_active)
     {
+        HandleSystemPadEvents();
         display();
-    }*/
+    }
 
-    //printf("Exiting\n");
+    printf("Exiting\n");
     return 0;
 }
