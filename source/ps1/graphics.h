@@ -30,6 +30,11 @@ typedef struct Window
     bool visible;
 } Window;
 
+extern char text_out[30*64];
+extern int screen_height;
+extern int screen_width;
+
+void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, uint16_t draw_height, uint16_t draw_width, bool auto_wrap);
 void DrawWindow(Window window);
 void InitFont(void);
 void InitGraphics(void);

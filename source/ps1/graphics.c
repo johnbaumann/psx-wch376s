@@ -28,27 +28,27 @@ int screen_width;
 Theme theme;
 Window windows[WINDOW_COUNT];
 u_char window_index;
-u_char active_window = 1;
+u_char active_window = 0;
 
-TILE window_tile[WINDOW_COUNT][3]; // 3 tiles per window: Border, bg, titlebar
+//TILE window_tile[WINDOW_COUNT][3]; // 3 tiles per window: Border, bg, titlebar
 
 DISPENV disp[2]; // Double buffered DISPENV and DRAWENV
 DRAWENV draw[2];
 u_long ot[2][OTLEN]; // double ordering table of length 8 * 32 = 256 bits / 32 bytes
 uint8_t db = 0;      // index of which buffer is used, values 0, 1
 
-int z_depth;
+uint16_t z_depth = OTLEN - 1;
 
 TIM_IMAGE test_image;
 extern u_long font_data[];
 
-char primbuff[2][32768] = {1};
+char primbuff[2][32768];
 char *nextpri = primbuff[0];
-DR_TPAGE *tpage_4b;
 SPRT *sprt_4b;
+TILE *tile;
 
 char menu_index = 0;
-char log_buffer[20][64];
+char text_out[30*64];
 
 void InitWindows(void);
 
@@ -84,7 +84,7 @@ void DrawChar(uint8_t character, int x_pos, int y_pos)
     nextpri += sizeof(SPRT);
 }
 
-void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, bool auto_wrap)
+void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, uint16_t draw_height, uint16_t draw_width, bool auto_wrap)
 {
     int32_t _y = y_pos;
     int32_t _x = x_pos;
@@ -98,7 +98,7 @@ void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, bool auto_wr
             continue;
         }
 
-        if (auto_wrap && ((_x + GLYPH_WIDTH) >= screen_width))
+        if (auto_wrap && ((_x + GLYPH_WIDTH) >= draw_width))
         {
             _y += GLYPH_HEIGHT + 1;
             _x = x_pos;
@@ -107,21 +107,6 @@ void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, bool auto_wr
         DrawChar(message[i], _x, _y);
         _x += (GLYPH_WIDTH + 1);
     }
-}
-
-void DrawFont(int x, int y)
-{
-    //
-    sprt_4b = (SPRT *)nextpri;
-    setSprt(sprt_4b);
-    setRGB0(sprt_4b, 128, 128, 128);
-    setXY0(sprt_4b, x, y);
-    setWH(sprt_4b, 8, 8);
-    setUV0(sprt_4b, 8, 0);
-    setClut(sprt_4b, test_image.crect->x, test_image.crect->y);
-    addPrim(ot[db], sprt_4b);
-
-    nextpri += sizeof(SPRT);
 }
 
 void InitFont(void)
@@ -138,7 +123,7 @@ void InitGraphics(void)
 
     ResetGraph(0);
 
-    screen_width = 320;
+    screen_width = 512;
     if (*(char *)0xbfc7ff52 == 'E') // SCEE
     {
         SetVideoMode(MODE_PAL);
@@ -201,12 +186,12 @@ void InitWindows(void)
 {
     for (int i = 0; i < WINDOW_COUNT; i++)
     {
-        windows[i].rect.w = 128;
-        windows[i].rect.h = 64;
-        windows[i].rect.x = (16 * i) % screen_width;
-        windows[i].rect.y = (16 * i) % screen_height;
+        windows[i].rect.w = 320;
+        windows[i].rect.h = 128;
+        windows[i].rect.x = ((16 * i)+8) % screen_width;
+        windows[i].rect.y = ((16 * i)+8) % screen_height;
                 windows[i].visible = true;
-        sprintf(windows[i].title, "Window #%i", i);
+        sprintf(windows[i].title, "USB Disk Info", i);
     }
     window_index = 0;
 }
@@ -220,11 +205,13 @@ void display(void)
     ClearOTagR(ot[db], OTLEN);
 
     window_index = 0;
-    active_window = WINDOW_COUNT - 1;
     for (int i = 0; i < WINDOW_COUNT; i++)
     {
         DrawWindow(windows[i]); // Draw all windows
+        window_index++;
     }
+
+    //DrawMessage(text_out, 20, 20, screen_height, screen_width, false);
 
     DrawSync(0);
     VSync(0);
@@ -235,61 +222,66 @@ void display(void)
     DrawOTag(ot[db] + OTLEN - 1);
 
     db = !db;
-    nextpri = primbuff[db];
+    nextpri = &primbuff[db][0];
 }
 
 void DrawWindow(Window window)
 {
+    tile = (TILE *)nextpri;
+
     // Border box
-    setTile(&window_tile[window_index][0]);
-    setRGB0(&window_tile[window_index][0], theme.Border.R, theme.Border.G, theme.Border.B);
-    window_tile[window_index][0].x0 = window.rect.x;
-    window_tile[window_index][0].y0 = window.rect.y;
-    window_tile[window_index][0].w = window.rect.w;
-    window_tile[window_index][0].h = window.rect.h;
-    addPrim(ot[db] + z_depth, &window_tile[window_index][0]); // add poly to the Ordering table
+    setTile(tile);
+    setRGB0(tile, theme.Border.R, theme.Border.G, theme.Border.B);
+    tile->x0 = window.rect.x;
+    tile->y0 = window.rect.y;
+    tile->w = window.rect.w;
+    tile->h = window.rect.h;
+    addPrim(ot[db] + z_depth, tile); // add poly to the Ordering table
     z_depth--;
+    nextpri += sizeof(TILE);
     // Border box
 
     // Background box
-    setTile(&window_tile[window_index][2]);
-    setRGB0(&window_tile[window_index][2], 0, 0, 0);
-    window_tile[window_index][2].x0 = window.rect.x + 1;
-    window_tile[window_index][2].y0 = window.rect.y + 9;
-    window_tile[window_index][2].w = window.rect.w - 2;
-    window_tile[window_index][2].h = window.rect.h - 10;
-    addPrim(ot[db] + z_depth, &window_tile[window_index][2]); // add poly to the Ordering table
+    tile = (TILE *)nextpri;
+    setTile(tile);
+    setRGB0(tile, 0, 0, 0);
+    tile->x0 = window.rect.x + 1;
+    tile->y0 = window.rect.y + 9;
+    tile->w = window.rect.w - 2;
+    tile->h = window.rect.h - 10;
+    addPrim(ot[db] + z_depth, tile); // add poly to the Ordering table
+    nextpri += sizeof(TILE);
     z_depth--;
     // Background box
 
     // Title Box
-    setTile(&window_tile[window_index][1]);
+    tile = (TILE *)nextpri;
+    setTile(tile);
     if (window_index == active_window)
     {
-        setRGB0(&window_tile[window_index][1], theme.ActiveTitle.R, theme.ActiveTitle.G, theme.ActiveTitle.B);
+        setRGB0(tile, theme.ActiveTitle.R, theme.ActiveTitle.G, theme.ActiveTitle.B);
     }
     else
     {
-        setRGB0(&window_tile[window_index][1], theme.InactiveTitle.R, theme.InactiveTitle.G, theme.InactiveTitle.B);
+        setRGB0(tile, theme.InactiveTitle.R, theme.InactiveTitle.G, theme.InactiveTitle.B);
     }
-    window_tile[window_index][1].x0 = window.rect.x + 1;
-    window_tile[window_index][1].y0 = window.rect.y + 1;
-    window_tile[window_index][1].w = window.rect.w - 2;
-    window_tile[window_index][1].h = 10;
-    addPrim(ot[db] + z_depth, &window_tile[window_index][1]); // add poly to the Ordering table
+    tile->x0 = window.rect.x + 1;
+    tile->y0 = window.rect.y + 1;
+    tile->w = window.rect.w - 2;
+    tile->h = 10;
+    addPrim(ot[db] + z_depth, tile); // add poly to the Ordering table
+    nextpri += sizeof(TILE);
     z_depth--;
     // Title Box
 
     // Title text
-    DrawMessage(window.title, window.rect.x + 2 + 10, window.rect.y + 2, false);
+    //DrawMessage(window.title, window.rect.x + 2 + 10, window.rect.y + 2, 10, window.rect.w - 2, false);
 
     // Close window button = x
-    DrawChar('x', window.rect.x + window.rect.w - 2 - GLYPH_WIDTH, window.rect.y + 1);
+    //DrawChar('x', window.rect.x + window.rect.w - 2 - GLYPH_WIDTH, window.rect.y + 1);
 
     // Minimize window button = ^
-    DrawChar('^', window.rect.x + 2, window.rect.y + 4);
-
-    window_index++;
+    //DrawChar('^', window.rect.x + 2, window.rect.y + 4);
 }
 
 void LoadTexture(u_long *tim_data, TIM_IMAGE *tim_image)

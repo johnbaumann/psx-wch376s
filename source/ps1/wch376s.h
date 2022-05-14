@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <stdio.h>
-
 // Sources:
 
 // USB Flash Disk and SD Card File Management Control Chip
@@ -20,13 +18,19 @@
 // Version: 1
 // http://wch.cn
 
-typedef struct
+typedef struct DiskInfo
 {
     uint32_t capacity;
     uint32_t available;
 } DiskInfo;
 
-typedef enum
+typedef enum CH376_OperationState
+{
+    Operation_Success = 0x51,
+    Operation_Abort = 0x5F,
+} CH376_OperationState;
+
+typedef enum CH376_FW_Version
 {
     FW_375 = 0xB7,    // Standard CH375 Module from Itead
     FW_376 = 0x41,    // Standard CH376 Module
@@ -35,7 +39,20 @@ typedef enum
     FW_376_SD2 = 0x43,
 } CH376_FW_Version;
 
-typedef enum
+typedef enum CH376_USB_Mode
+{
+    Mode_Disabled = 0x00,
+    Mode_Enabled_USBDev_ExternalFW = 0x01,
+    Mode_Enabled_USBDev_InternalFW = 0x02,
+    Mode_Enabled_SDHost = 0x03,
+    Mode_Disabled_USBHost = 0x04,
+    Mode_Enabled_USBHost_NoSOF = 0x05,
+    Mode_Enabled_USBHost_SOF = 0x06,
+    Mode_Enabled_USBHost_Reset = 0x07,
+
+} CH376_USB_Mode;
+
+typedef enum CH376_InterruptStatus
 {
     // 03H - Detection of USB bus reset (the bit 1 and bit 0 of interrupt status value is 11)
     USB_INT_BUS_RESET1 = 0x03,
@@ -103,26 +120,8 @@ typedef enum
     ERR_FILE_CLOSE = 0xB4,
 } CH376_InterruptStatus;
 
-typedef enum
-{
-    Operation_Success = 0x51,
-    Operation_Abort = 0x5F,
-} CH376_OperationState;
 
-typedef enum
-{
-    Mode_Disabled = 0x00,
-    Mode_Enabled_USBDev_ExternalFW = 0x01,
-    Mode_Enabled_USBDev_InternalFW = 0x02,
-    Mode_Enabled_SDHost = 0x03,
-    Mode_Disabled_USBHost = 0x04,
-    Mode_Enabled_USBHost_NoSOF = 0x05,
-    Mode_Enabled_USBHost_SOF = 0x06,
-    Mode_Enabled_USBHost_Reset = 0x07,
-
-} CH376_USB_Mode;
-
-typedef enum
+typedef enum CH376_Command
 {
     // 01H - Get the chip and firmware versions
     // Input data: none
@@ -359,114 +358,115 @@ typedef enum
     // the interrupt cause and processes.
     GET_STATUS = 0x22,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 25H - Clear internal disk and file buffers
+    // Input data: none
+    // Output data: none
     DIRTY_BUFFER = 0x25,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 27H - Read the data block from the endpoint buffer of the current USB interrupt or from the receive buffer of the host endpoint
+    // Input data: none
+    // Output data: Data length, Data stream (n)
     RD_USB_DATA0 = 0x27,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 2CH - Write the data block to the transmit buffer of the USB host endpoint
+    // Input data: Data Length, Data stream (n)
+    // Output data: none
     WR_HOST_DATA = 0x2C,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 2DH - Write the requested data block to the internal specified buffer
+    // Input data: None, Data stream (n)
+    // Output data: Data Length
+    // To-do: check if this is correct, it seems to be wrong. Data length is maybe first input?
     WR_REQ_DATA = 0x2D,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 2EH - Write the data block to the specified offset address of the internal buffer
+    // Input data: Offset address, Data Length, Data stream (n)
+    // Output data: none
     WR_OFS_DATA = 0x2E,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 2FH - Set the filename of the file to be operated
+    // Input data: Character string (n)
+    // Output data: none
     SET_FILE_NAME = 0x2F,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 30H - Check whether the disk is connected
+    // Input data: none
+    // Output data: Generate interrupt
     DISK_CONNECT = 0x30,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 31H - Initialize the disk and test whether the disk is ready
+    // Input data: none
+    // Output data: Generate interrupt
     DISK_MOUNT = 0x31,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 32H - Open files or directories, enumerate files and directories
+    // Input data: none
+    // Output data: Generate interrupt
     FILE_OPEN = 0x32,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 33H - Continue enumerating files and directories
+    // Input data: none
+    // Output data: Generate interrupt
     FILE_ENUM_GO = 0x33,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 34H - New File
+    // Input data: none
+    // Output data: Generate interrupt
     FILE_CREATE = 0x34,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 35H - Delete File
+    // Input data: none
+    // Output data: Generate interrupt
     FILE_ERASE = 0x35,
 
-    //  -
-    // Input data:
-    // Output data:
+    // 36H - Close the currently opened file or directory
+    // Input data: Whether update is allowed
+    // Output data: Generate interrupt
     FILE_CLOSE = 0x36,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DIR_INFO_READ = 0x37,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DIR_INF0_SAVE = 0x38,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     BYTE_LOCATE = 0x39,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     BYTE_READ = 0x3A,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     BYTE_RD_GO = 0x3B,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     BYTE_WRITE = 0x3C,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     BYTE_WR_GO = 0x3D,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_CAPACITY = 0x3E,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_QUERY = 0x3F,
 
     // 40H - Create a new directory and open it or open an existing directory
@@ -476,122 +476,120 @@ typedef enum
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     CLR_STALL = 0x41,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     SET_ADDRESS = 0x45,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     GET_DESCR = 0x46,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     SET_CONFIG = 0x49,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     SEG_LOCATE = 0x4A,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     SEC_READ = 0x4B,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     SEC_WRITE = 0x4C,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     AUTO_SETUP = 0x4D,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     ISSUE_TKN_X = 0x4E,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_BOC_CMD = 0x50,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_INIT = 0x51,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_RESET = 0x52,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_SIZE = 0x53,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_READ = 0x54,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_RD_GO = 0x55,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_WRITE = 0x56,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_WR_GO = 0x57,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_INQUIRY = 0x58,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_READY = 0x59,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_R_SENSE = 0x5A,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     RD_DISK_SEC = 0x5B,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     WR_DISK_SEC = 0x5C,
 
     //  -
     // Input data:
-    // Output data:
+    // Output data: Generate interrupt
     DISK_MAX_LUN = 0x5D,
 } CH376_Command;
 
-static void delay1us();
-static void delay2us();
 void DelayMilliseconds(uint32_t milliseconds);
 
 uint8_t CH376_ReadCommand();
@@ -600,369 +598,45 @@ void CH376_WriteCommand(CH376_Command cmd);
 void CH376_WriteData(uint8_t param);
 bool CH376_CheckIfExists();
 
+uint8_t CH376_GetLastInt();
+bool CH376_WaitInt(uint32_t retry_count);
+
 // GET_IC_VER
 uint8_t CH376_GetVersion();
-
 // SET_BAUDRATE
 uint8_t CH376_SetBaudRate(uint8_t coefficient, uint8_t divisor);
-
 // ENTER_SLEEP
 void CH376_EnterSleep();
-
 // SET_USB_SPEED
 void CH376_SetUSBSpeed(uint8_t speed);
+// RESET_ALL
 void CH376_ResetAll();
+// CHECK_EXIST
 uint8_t CH376_CheckExists(uint8_t data);
-// --
+// GET_DEV_RATE
+uint8_t CH376_GetDevRate();
+// 0AH READ_VAR8
+uint8_t CH376_ReadVar8(uint8_t address);
+// 0BH SET_SD0_INT
+void CH376_SetSD0Int(uint8_t enable);
+// 0BH SET_RETRY
+void CH376_SetRetry(uint8_t retry);
+
+// 22H GET_STATUS
 uint8_t CH376_GetStatus();
-bool CH376_WaitInt(CH376_InterruptStatus target_int, uint32_t retry_count);
+
+// SET_USB_MODE
 bool CH376_SetUSBMode(CH376_USB_Mode mode);
 uint8_t CH376_ReadUSBData(uint8_t *buffer);
 void CH376_SetFileName(uint8_t *name, uint32_t length);
 bool CH376_MountDisk();
 bool CH376_FileOpen();
+bool CH376_FileEnumGo();
+bool CH376_FileClose();
+bool CH376_CreateDirectory();
+
 uint32_t CH376_DiskCapacity();
 DiskInfo CH376_QueryDisk();
 bool CH376_CreateDirectory();
-
-const uint32_t base_address = 0x1F060008;
-static volatile uint8_t *command_register = (uint8_t *)(base_address + 1);
-static volatile uint8_t *data_register = (uint8_t *)(base_address);
-
-// Timing unconfirmed
-static void delay1us()
-{
-    volatile int i;
-    for (i = 0; i < 2; i++)
-        ;
-}
-
-// Timing unconfirmed
-static void delay2us()
-{
-    volatile int i;
-    for (i = 0; i < 4; i++)
-        ;
-}
-
-// Timing unconfirmed
-void DelayMilliseconds(uint32_t milliseconds)
-{
-    volatile int i;
-    for (i = 0; i < (uint32_t)(1694 * milliseconds); i++)
-        ;
-}
-
-uint8_t CH376_ReadCommand()
-{
-    return (uint8_t)(*command_register);
-}
-
-uint8_t CH376_ReadData()
-{
-    delay1us();
-    return (uint8_t)(*data_register);
-}
-
-void CH376_WriteCommand(CH376_Command cmd)
-{
-    delay2us();
-    *command_register = cmd;
-    delay2us();
-}
-
-void CH376_WriteData(uint8_t param)
-{
-    *data_register = param;
-    delay1us();
-}
-
-uint8_t CH376_GetVersion()
-{
-    CH376_WriteCommand(GET_IC_VER);
-    return CH376_ReadData();
-}
-
-uint8_t CH376_SetBaudRate(uint8_t coefficient, uint8_t divisor)
-{
-    CH376_WriteCommand(SET_BAUDRATE);
-    CH376_WriteData(coefficient);
-    CH376_WriteData(divisor);
-
-    return CH376_ReadData();
-}
-
-void CH376_EnterSleep()
-{
-    CH376_WriteCommand(ENTER_SLEEP);
-}
-
-void CH376_SetUSBSpeed(uint8_t speed)
-{
-    CH376_WriteCommand(SET_USB_SPEED);
-    CH376_WriteData(speed);
-}
-
-void CH376_ResetAll()
-{
-    CH376_WriteCommand(RESET_ALL);
-    DelayMilliseconds(35);
-}
-
-uint8_t CH376_CheckExists(uint8_t data)
-{
-    CH376_WriteCommand(CHECK_EXIST);
-    CH376_WriteData(data);
-
-    return CH376_ReadData();
-}
-
-bool CH376_CheckIfExists()
-{
-    return (CH376_CheckExists((uint8_t)0x0F) == 0xF0);
-}
-
-uint8_t CH376_GetStatus()
-{
-    CH376_WriteCommand(GET_STATUS);
-    return CH376_ReadData();
-}
-
-static bool between(uint8_t val, uint8_t beg, uint8_t end)
-{
-    return (val >= beg && val <= end);
-}
-
-bool CH376_WaitInt(CH376_InterruptStatus target_int, uint32_t retry_count)
-{
-    uint8_t result;
-    for (int i = 0; i < retry_count; i++)
-    {
-        result = CH376_GetStatus();
-
-        /*if (between(result, 0x00, 0x0F))
-        {
-            // Please refer to CH372 Datasheet for the interrupt status in USB device mode.
-            printf("%02X Please refer to CH372 Datasheet for the interrupt status in USB device mode.\n", result);
-        }*/
-        if (between(result, 0x10, 0x1F))
-        {
-            // Operation interrupt status in SD card or USB host mode
-
-            switch (result)
-            {
-            case USB_INT_SUCCESS:
-            case USB_INT_CONNECT:
-            case USB_INT_DISCONNECT:
-            case USB_INT_USB_READY:
-            case USB_INT_DISK_READ:
-            case USB_INT_DISK_WRITE:
-            default:
-                return true;
-                break;
-
-            case USB_INT_DISK_ERR:
-            case USB_INT_BUF_OVER:
-                return false;
-                break;
-            }
-        }
-        else if (between(result, 0x20, 0x3F))
-        {
-            // Communication failure status in USB host mode, used to analyze the cause of operation failure
-            switch(result)
-            {
-                case ERR_OPEN_DIR:
-                case ERR_FOUND_NAME:
-                return true;
-                break;
-
-                case ERR_MISS_FILE:
-                case ERR_DISK_DISCON:
-                case ERR_LARGE_SECTOR:
-                case ERR_TYPE_ERROR:
-                case ERR_BPB_ERROR:
-                case ERR_DISK_FULL:
-                case ERR_FDT_OVER:
-                case ERR_FILE_CLOSE:
-                return false;
-                break;
-            }
-        }
-        else if (between(result, 0x40, 0x4F))
-        {
-            // File system warning codes in SD card or USB host file mode
-        }
-        else if (between(result, 0x80, 0xBF))
-        {
-            // File system error codes in SD card or USB host file mode
-            return false;
-        }
-
-        // if (result & 0x20)
-        // {
-        //     printf("%02X Failure bit set\n", result);
-        //     return false;
-        // }
-
-        DelayMilliseconds(1);
-    }
-
-    //printf("%02X\n", result);
-    return false;
-}
-
-bool CH376_SetUSBMode(CH376_USB_Mode mode)
-{
-    unsigned char i;
-    CH376_WriteCommand(SET_USB_MODE);
-    CH376_WriteData(mode);
-    for (i = 0; i <= 100; i++)
-    {
-        if (CH376_ReadData() == Operation_Success)
-            return true;
-    }
-    return false;
-}
-
-uint8_t CH376_ReadUSBData(uint8_t *buffer)
-{
-    uint8_t length;
-    CH376_WriteCommand(RD_USB_DATA0);
-    DelayMilliseconds(1);
-    length = CH376_ReadData();
-
-    for (int i = 0; i < length; i++)
-    {
-        buffer[i] = CH376_ReadData();
-    }
-
-    return length;
-}
-
-void CH376_SetFileName(uint8_t *name, uint32_t length)
-{
-    CH376_WriteCommand(SET_FILE_NAME);
-
-    for (int i = 0; i < length; i++)
-    {
-        CH376_WriteData(name[i]);
-        if (name[i] == '\0')
-            return;
-    }
-
-    CH376_WriteData('\0');
-}
-
-bool CH376_MountDisk()
-{
-    uint8_t result;
-
-    CH376_WriteCommand(DISK_MOUNT);
-    DelayMilliseconds(130);
-
-    return CH376_WaitInt(USB_INT_SUCCESS, 3000);
-}
-
-bool CH376_FileOpen()
-{
-    CH376_WriteCommand(FILE_OPEN);
-    // DelayMilliseconds(100);
-
-    if (CH376_WaitInt(USB_INT_DISK_READ, 3000))
-        return true;
-    else
-        return false;
-    return true;
-}
-
-bool CH376_FileEnumGo()
-{
-    CH376_WriteCommand(FILE_ENUM_GO);
-    DelayMilliseconds(100);
-
-    /*if (CH376_WaitInt(USB_INT_DISK_READ, 3000))
-        return true;
-    else
-        return false;
-    return true;*/
-}
-
-uint32_t CH376_DiskCapacity()
-{
-    uint32_t disk_capacity;
-
-    uint8_t buffer[256];
-    uint8_t buffer_length;
-
-    CH376_WriteCommand(DISK_CAPACITY);
-
-    if (CH376_WaitInt(USB_INT_SUCCESS, 3000))
-    {
-        buffer_length = CH376_ReadUSBData(buffer);
-
-        for (int i = 0; i < 4; i++)
-        {
-            disk_capacity |= buffer[i] << (i * 8);
-        }
-    }
-    return disk_capacity;
-}
-
-DiskInfo CH376_QueryDisk()
-{
-    uint8_t buffer[256];
-    uint32_t buffer_length;
-
-    DiskInfo out;
-    CH376_WriteCommand(DISK_QUERY);
-    DelayMilliseconds(3);
-
-    if (CH376_WaitInt(USB_INT_SUCCESS, 3000))
-    {
-        buffer_length = CH376_ReadUSBData(buffer);
-
-        out.capacity = 0;
-        for (int i = 0; i < 4; i++)
-        {
-            out.capacity |= buffer[i] << (i * 8);
-        }
-
-        out.available = 0;
-        for (int i = 4; i < 8; i++)
-        {
-            out.available |= buffer[i] << (i * 8);
-        }
-    }
-    return out;
-}
-
-bool CH376_FileErase()
-{
-    CH376_WriteCommand(FILE_ERASE);
-    DelayMilliseconds(100);
-
-    return CH376_WaitInt(USB_INT_SUCCESS, 3000);
-}
-
-bool CH376_FileClose()
-{
-    CH376_WriteCommand(FILE_CLOSE);
-    CH376_WriteData(0);
-    DelayMilliseconds(100);
-
-    return CH376_WaitInt(ERR_FILE_CLOSE, 3000);
-}
-
-bool CH376_CreateDirectory()
-{
-    CH376_WriteCommand(DIR_CREATE);
-    DelayMilliseconds(100);
-
-    if (CH376_WaitInt(ERR_FILE_CLOSE, 100))
-        return true;
-    else
-        return false;
-}
 
 #endif // _WCH376S_H_
