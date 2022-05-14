@@ -1,3 +1,5 @@
-# Template
+# PSX WCH376S test
 
-This is my repo for derping around
+Project under development.
+
+My attempt at making a ps1 driver for the WCH376S, attached to the parallel port.
