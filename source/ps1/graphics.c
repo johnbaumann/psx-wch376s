@@ -1,5 +1,7 @@
 #include "ps1/graphics.h"
 
+#include "ps1/gui.h"
+
 #include <sys/types.h>
 #include <stdio.h>
 #include <libgte.h>
@@ -9,12 +11,6 @@
 #include <strings.h>
 
 #define VMODE MODE_NTSC // Video Mode : 0 : NTSC, 1: PAL / MODE_NTSC
-#define OTLEN 1024      // Ordering Table Length
-
-#define WINDOW_COUNT 1
-
-#define GLYPH_WIDTH 8
-#define GLYPH_HEIGHT 8
 
 volatile uint8_t vsync_counter;
 uint8_t vsyncs_per_second;
@@ -25,32 +21,40 @@ volatile uint8_t frame_rate;
 int screen_height;
 int screen_width;
 
-Theme theme;
-Window windows[WINDOW_COUNT];
-u_char window_index;
-u_char active_window = 0;
-
-//TILE window_tile[WINDOW_COUNT][3]; // 3 tiles per window: Border, bg, titlebar
-
 DISPENV disp[2]; // Double buffered DISPENV and DRAWENV
 DRAWENV draw[2];
 u_long ot[2][OTLEN]; // double ordering table of length 8 * 32 = 256 bits / 32 bytes
 uint8_t db = 0;      // index of which buffer is used, values 0, 1
 
 uint16_t z_depth = OTLEN - 1;
+int32_t current_tpage = -1;
 
-TIM_IMAGE test_image;
 extern u_long font_data[];
+TIM_IMAGE font_image;
 
-char primbuff[2][32768];
+char primbuff[2][1024 * 32];
 char *nextpri = primbuff[0];
 SPRT *sprt_4b;
-TILE *tile;
+DR_TPAGE *tpage_4b;
 
-char menu_index = 0;
-char text_out[30*64];
+bool ChecKRECTBounds(RECT container, RECT item)
+{
+    if (item.x >= container.x && item.x + item.w <= container.x + container.w && item.y >= container.y && item.y + item.h <= container.y + container.h)
+    {
+        return true;
+    }
+    return false;
+}
 
-void InitWindows(void);
+void FontTPage()
+{
+    nextpri += sizeof(SPRT);
+    tpage_4b = (DR_TPAGE *)nextpri;
+    SetDrawTPage(tpage_4b, 0, 1, getTPage(font_image.mode & 0x3, 0, font_image.prect->x, font_image.prect->y));
+    
+    AddPrim(&ot[db][z_depth], tpage_4b);
+    nextpri += sizeof(DR_TPAGE);
+}
 
 void DrawChar(uint8_t character, int x_pos, int y_pos)
 {
@@ -72,19 +76,17 @@ void DrawChar(uint8_t character, int x_pos, int y_pos)
     glyph_y = (glyph_index / 19) * 8;
 
     sprt_4b = (SPRT *)nextpri;
-    setSprt(sprt_4b);
+    SetSprt(sprt_4b);
     setRGB0(sprt_4b, 128, 128, 128);
     setXY0(sprt_4b, x_pos, y_pos);
     setWH(sprt_4b, 8, 8);
     setUV0(sprt_4b, glyph_x, glyph_y);
-    setClut(sprt_4b, test_image.crect->x, test_image.crect->y);
-    addPrim(ot[db] + z_depth, sprt_4b);
-
-    z_depth--;
-    nextpri += sizeof(SPRT);
+    setClut(sprt_4b, font_image.crect->x, font_image.crect->y);
+    AddPrim(&ot[db][z_depth], sprt_4b);
+    FontTPage();
 }
 
-void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, uint16_t draw_height, uint16_t draw_width, bool auto_wrap)
+void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, uint16_t draw_width, uint16_t draw_height, bool auto_wrap)
 {
     int32_t _y = y_pos;
     int32_t _x = x_pos;
@@ -98,28 +100,28 @@ void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, uint16_t dra
             continue;
         }
 
-        if (auto_wrap && ((_x + GLYPH_WIDTH) >= draw_width))
+        if (auto_wrap && ((_x + GLYPH_WIDTH) >= x_pos + draw_width))
         {
             _y += GLYPH_HEIGHT + 1;
             _x = x_pos;
         }
 
-        DrawChar(message[i], _x, _y);
-        _x += (GLYPH_WIDTH + 1);
+        if (_x + GLYPH_WIDTH < x_pos + draw_width && _y + GLYPH_HEIGHT < y_pos + draw_height)
+        {
+            DrawChar(message[i], _x, _y);
+            _x += GLYPH_WIDTH;
+        }
     }
 }
 
 void InitFont(void)
 {
-    LoadTexture(font_data, &test_image);
-
-    //FntLoad(960, 0);
-    //FntOpen(10, 10, SCREENXRES, SCREENYRES, 0, 280);
+    LoadTexture(font_data, &font_image);
 }
 
 void InitGraphics(void)
 {
-    InitTheme();
+    GUI_InitTheme();
 
     ResetGraph(0);
 
@@ -127,7 +129,7 @@ void InitGraphics(void)
     if (*(char *)0xbfc7ff52 == 'E') // SCEE
     {
         SetVideoMode(MODE_PAL);
-        //screen_height = 256;
+        // screen_height = 256;
         screen_height = 240;
         vsyncs_per_second = 50;
     }
@@ -139,17 +141,17 @@ void InitGraphics(void)
     }
 
     InitGeom();
-    SetGeomOffset(screen_width / 2, screen_width / 2);
+    SetGeomOffset(screen_width / 2, screen_height / 2);
     SetGeomScreen(screen_width / 2);
 
     SetDefDispEnv(&disp[0], 0, 0, screen_width, screen_height);
     SetDefDispEnv(&disp[1], 0, screen_height, screen_width, screen_height);
 
-    SetDefDrawEnv(&draw[0], 0, 0, screen_width, screen_height);
-    SetDefDrawEnv(&draw[1], 0, screen_height, screen_width, screen_height);
+    SetDefDrawEnv(&draw[0], 0, screen_height, screen_width, screen_height);
+    SetDefDrawEnv(&draw[1], 0, 0, screen_width, screen_height);
 
-    setRGB0(&draw[0], theme.BG.R, theme.BG.G, theme.BG.B);
-    setRGB0(&draw[1], theme.BG.R, theme.BG.G, theme.BG.B);
+    setRGB0(&draw[0], theme.Background.R, theme.Background.G, theme.Background.B);
+    setRGB0(&draw[1], theme.Background.R, theme.Background.G, theme.Background.B);
 
     draw[0].isbg = 1;
     draw[1].isbg = 1;
@@ -160,40 +162,8 @@ void InitGraphics(void)
     PutDrawEnv(&draw[db]);
 
     InitFont();
-    InitWindows();
-}
-
-void InitTheme(void)
-{
-    theme.BG.R = 0;
-    theme.BG.G = 0;
-    theme.BG.B = 75;
-
-    theme.Border.R = 93;
-    theme.Border.G = 93;
-    theme.Border.B = 128;
-
-    theme.ActiveTitle.R = 71;
-    theme.ActiveTitle.G = 71;
-    theme.ActiveTitle.B = 150;
-
-    theme.InactiveTitle.R = 57;
-    theme.InactiveTitle.G = 57;
-    theme.InactiveTitle.B = 57;
-}
-
-void InitWindows(void)
-{
-    for (int i = 0; i < WINDOW_COUNT; i++)
-    {
-        windows[i].rect.w = 320;
-        windows[i].rect.h = 128;
-        windows[i].rect.x = ((16 * i)+8) % screen_width;
-        windows[i].rect.y = ((16 * i)+8) % screen_height;
-                windows[i].visible = true;
-        sprintf(windows[i].title, "USB Disk Info", i);
-    }
-    window_index = 0;
+    GUI_InitCursor();
+    GUI_InitWindows();
 }
 
 void display(void)
@@ -204,84 +174,15 @@ void display(void)
 
     ClearOTagR(ot[db], OTLEN);
 
-    window_index = 0;
-    for (int i = 0; i < WINDOW_COUNT; i++)
-    {
-        DrawWindow(windows[i]); // Draw all windows
-        window_index++;
-    }
-
-    //DrawMessage(text_out, 20, 20, screen_height, screen_width, false);
+    GUI_DrawAllWindows();
 
     DrawSync(0);
     VSync(0);
-
     PutDispEnv(&disp[db]);
     PutDrawEnv(&draw[db]);
-
-    DrawOTag(ot[db] + OTLEN - 1);
-
+    DrawOTag(&ot[db][OTLEN - 1]);
     db = !db;
-    nextpri = &primbuff[db][0];
-}
-
-void DrawWindow(Window window)
-{
-    tile = (TILE *)nextpri;
-
-    // Border box
-    setTile(tile);
-    setRGB0(tile, theme.Border.R, theme.Border.G, theme.Border.B);
-    tile->x0 = window.rect.x;
-    tile->y0 = window.rect.y;
-    tile->w = window.rect.w;
-    tile->h = window.rect.h;
-    addPrim(ot[db] + z_depth, tile); // add poly to the Ordering table
-    z_depth--;
-    nextpri += sizeof(TILE);
-    // Border box
-
-    // Background box
-    tile = (TILE *)nextpri;
-    setTile(tile);
-    setRGB0(tile, 0, 0, 0);
-    tile->x0 = window.rect.x + 1;
-    tile->y0 = window.rect.y + 9;
-    tile->w = window.rect.w - 2;
-    tile->h = window.rect.h - 10;
-    addPrim(ot[db] + z_depth, tile); // add poly to the Ordering table
-    nextpri += sizeof(TILE);
-    z_depth--;
-    // Background box
-
-    // Title Box
-    tile = (TILE *)nextpri;
-    setTile(tile);
-    if (window_index == active_window)
-    {
-        setRGB0(tile, theme.ActiveTitle.R, theme.ActiveTitle.G, theme.ActiveTitle.B);
-    }
-    else
-    {
-        setRGB0(tile, theme.InactiveTitle.R, theme.InactiveTitle.G, theme.InactiveTitle.B);
-    }
-    tile->x0 = window.rect.x + 1;
-    tile->y0 = window.rect.y + 1;
-    tile->w = window.rect.w - 2;
-    tile->h = 10;
-    addPrim(ot[db] + z_depth, tile); // add poly to the Ordering table
-    nextpri += sizeof(TILE);
-    z_depth--;
-    // Title Box
-
-    // Title text
-    //DrawMessage(window.title, window.rect.x + 2 + 10, window.rect.y + 2, 10, window.rect.w - 2, false);
-
-    // Close window button = x
-    //DrawChar('x', window.rect.x + window.rect.w - 2 - GLYPH_WIDTH, window.rect.y + 1);
-
-    // Minimize window button = ^
-    //DrawChar('^', window.rect.x + 2, window.rect.y + 4);
+    nextpri = primbuff[db];
 }
 
 void LoadTexture(u_long *tim_data, TIM_IMAGE *tim_image)
@@ -295,7 +196,7 @@ void LoadTexture(u_long *tim_data, TIM_IMAGE *tim_image)
     // Clut
     if (tim_image->mode & 0x8)
     {
-        //LoadClut(tim_image.caddr, tim_image.crect->x, tim_image.crect->y);
+        // LoadClut(tim_image.caddr, tim_image.crect->x, tim_image.crect->y);
         LoadImage(tim_image->crect, tim_image->caddr);
         DrawSync(0);
     }

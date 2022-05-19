@@ -6,6 +6,8 @@
 
 // Sources:
 
+// danhans42 - For the idea and for showing me how to inferface with the chip
+
 // USB Flash Disk and SD Card File Management Control Chip
 // CH376
 // Datasheet

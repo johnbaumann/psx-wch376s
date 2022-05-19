@@ -5,7 +5,7 @@
             "type": "gdb",
             "request": "launch",
             "name": "(gdb) Debug",
-            "target": "./main.elf",
+            "target": "./wch376s-demo.elf",
             "linux": {
                 "gdbpath": "/usr/bin/gdb-multiarch",
             },
@@ -18,7 +18,7 @@
                 "target remote localhost:3333",
                 "set substitute-path /project .",
                 "monitor reset shellhalt",
-                "load ./main.elf",
+                "load ./wch376s-demo.elf",
                 "tbreak main",
                 "continue",
             ],

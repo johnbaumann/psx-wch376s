@@ -122,7 +122,7 @@
             "type": "shell",
             "windows": {
                 // Assumes nops is on the PATH
-                "command": "nops /exe main.exe",
+                "command": "nops /exe wch376s-demo.exe",
                 "options": {
                     "cwd": "${workspaceFolder}"
                 }

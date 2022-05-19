@@ -9,9 +9,15 @@
 	.set noreorder
 
 # Declare object(s) global
+	.global cursor_data
 	.global font_data
 
+
 	.align 4 # Advance location counter to next word-alignment
+
+cursor_data:
+		.incbin "../../assets/CURSOR.TIM"
+		.align 4 # Advance location counter to next word-alignment
 
 font_data:
 		.incbin "../../assets/8X8FONT.TIM"

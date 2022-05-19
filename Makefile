@@ -4,6 +4,7 @@ TYPE = exe
 SRCS = source/ps1/main.c \
 source/ps1/filesystem.c \
 source/ps1/graphics.c \
+source/ps1/gui.c \
 source/ps1/pads.c \
 source/ps1/usbhostdemo.c \
 source/ps1/wch376s.c \

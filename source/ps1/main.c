@@ -14,8 +14,6 @@
 
 volatile bool demo_active = true;
 
-
-
 int main(void)
 {
     // Initialize the graphics

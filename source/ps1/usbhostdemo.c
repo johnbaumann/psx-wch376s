@@ -1,6 +1,7 @@
 #include "ps1/usbhostdemo.h"
 
 #include "ps1/graphics.h"
+#include "ps1/gui.h"
 #include "ps1/wch376s.h"
 
 #include <stdbool.h>
@@ -59,7 +60,7 @@ void USB_Host_Init()
     // Check if the device is connected
     if (!CH376_CheckIfExists())
     {
-        // printf("No CH376 found\n");
+        sprintf(text_out, "No CH376 found");
     }
     else
     {
