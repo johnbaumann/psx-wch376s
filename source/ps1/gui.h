@@ -20,8 +20,8 @@ typedef struct Window
 } Window;
 
 extern u_long cursor_data[];
-extern uint8_t cursor_x_velocity;
-extern uint8_t cursor_y_velocity;
+extern short cursor_x_velocity;
+extern short cursor_y_velocity;
 
 extern char text_out[30*64];
 extern Theme theme;
@@ -31,5 +31,7 @@ void GUI_DrawWindow(Window window);
 void GUI_InitCursor(void);
 void GUI_InitTheme(void);
 void GUI_InitWindows(void);
+
+void MoveToFront(char* item_list, int count, int index);
 
 #endif // _GRAPHICS_H_

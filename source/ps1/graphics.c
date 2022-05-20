@@ -37,7 +37,7 @@ char *nextpri = primbuff[0];
 SPRT *sprt_4b;
 DR_TPAGE *tpage_4b;
 
-bool ChecKRECTBounds(RECT container, RECT item)
+bool IsInBound(RECT container, RECT item)
 {
     if (item.x >= container.x && item.x + item.w <= container.x + container.w && item.y >= container.y && item.y + item.h <= container.y + container.h)
     {

@@ -12,6 +12,35 @@ u_long old_pad_mask;
 
 extern bool demo_active;
 
+bool PadHeld(u_long pad_bit)
+{
+    return (pad_mask & pad_bit);
+}
+
+bool PadPressed(u_long pad_bit)
+{
+    if (pad_mask & pad_bit)
+    {
+        if (!(old_pad_mask & pad_bit))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PadReleased(u_long pad_bit)
+{
+    if (!(pad_mask & pad_bit))
+    {
+        if (old_pad_mask & pad_bit)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void HandleSystemPadEvents()
 {
     UpdatePads();
@@ -31,33 +60,35 @@ void HandleSystemPadEvents()
     }
     // Pause
 
-    // Up
-    if (pad_mask & Pad1Up && !(old_pad_mask & Pad1Up))
+    // Vertical
+    if(PadHeld(Pad1Up))
     {
-        cursor_y_velocity = 1;
+        cursor_y_velocity = -2;
     }
-    // Up
+    else if(PadHeld(Pad1Down))
+    {
+        cursor_y_velocity = 2;
+    }
+    else
+    {
+        cursor_y_velocity = 0;
+    }
+    // Vertical
 
-    // Down
-    if (pad_mask & Pad1Down && !(old_pad_mask & Pad1Down))
+    // Horizontal
+    if(PadHeld(Pad1Left))
     {
-        cursor_y_velocity = -1;
+        cursor_x_velocity = -2;
     }
-    // Down
-
-    // Left
-    if (pad_mask & Pad1Left && !(old_pad_mask & Pad1Left))
+    else if(PadHeld(Pad1Right))
     {
-        cursor_x_velocity = -1;
+        cursor_x_velocity = 2;
     }
-    // Left
-
-    // Right
-    if (pad_mask & Pad1Right && !(old_pad_mask & Pad1Right))
+    else
     {
-        cursor_x_velocity = 1;
+        cursor_x_velocity = 0;
     }
-    // Right
+    // Horizontal
 }
 
 void InitPads()

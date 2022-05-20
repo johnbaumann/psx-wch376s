@@ -30,6 +30,7 @@ extern uint8_t db;
 extern u_long ot[2][OTLEN];
 extern uint16_t z_depth;
 
+bool IsInBound(RECT container, RECT item);
 void FontTPage();
 void DrawChar(uint8_t character, int x_pos, int y_pos);
 void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, uint16_t draw_width, uint16_t draw_height, bool auto_wrap);
