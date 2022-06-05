@@ -29,7 +29,7 @@ RECT text_rect;
 short cursor_x_velocity = 0;
 short cursor_y_velocity = 0;
 
-void GUI_DrawCursor(RECT* cursor_rect);
+void GUI_DrawCursor(RECT *cursor_rect);
 
 void GUI_DrawAllWindows(void)
 {
@@ -43,27 +43,41 @@ void GUI_DrawAllWindows(void)
         case 0:
         case 1:
         case 2:
-            DrawMessage("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus elementum lorem a massa egestas, id rhoncus eros semper.", windows[i].rect.x + 2, windows[i].rect.y + 12, windows[i].rect.w - 4, windows[i].rect.h - 14, true);
+            //DrawMessage("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus elementum lorem a massa egestas, id rhoncus eros semper.", windows[i].rect.x + 2, windows[i].rect.y + 12, windows[i].rect.w - 4, windows[i].rect.h - 14, true);
+            // DrawMessage("Test.", windows[i].rect.x + 2, windows[i].rect.y + 12, windows[i].rect.w - 4, windows[i].rect.h - 14, true);
             break;
 
         case 3:
-            DrawMessage(text_out, windows[i].rect.x + 2, windows[i].rect.y + 12, screen_width, screen_height, false);
+            // DrawMessage(text_out, windows[i].rect.x + 2, windows[i].rect.y + 12, screen_width, screen_height, false);
             break;
         }
         window_index++;
     }
 
-    temp = cursor_rect;
-    temp.x += cursor_x_velocity;
-    temp.y += cursor_y_velocity;
-    if(IsInBound(screen, temp))
     {
-        cursor_rect = temp;
+        temp = cursor_rect;
+
+        temp.x += cursor_x_velocity;
+        if (IsInBound(screen, temp))
+        {
+            cursor_rect.x = temp.x;
+        }
+        else
+        {
+            temp.x = cursor_rect.x;
+        }
+        temp.y += cursor_y_velocity;
+
+        if (IsInBound(screen, temp))
+        {
+            cursor_rect.y = temp.y;
+        }
     }
+
     GUI_DrawCursor(&cursor_rect);
 }
 
-void GUI_DrawCursor(RECT* cursor_rect)
+void GUI_DrawCursor(RECT *cursor_rect)
 {
     cursor = (SPRT *)nextpri;
     setSprt(cursor);
@@ -73,16 +87,14 @@ void GUI_DrawCursor(RECT* cursor_rect)
     setUV0(cursor, cursor_image.prect->x * 4, cursor_image.prect->y);
     setClut(cursor, cursor_image.crect->x, cursor_image.crect->y);
     addPrim(&ot[db][z_depth], cursor);
-    //z_depth--;
-
     nextpri += sizeof(SPRT);
 
-    nextpri += sizeof(SPRT);
-    cursor_tpage = (DR_TPAGE *)nextpri;
-    SetDrawTPage(cursor_tpage, 0, 1, GetTPage(cursor_image.mode & 0x3, 0, cursor_image.prect->x, cursor_image.prect->y));
-    
-    AddPrim(&ot[db][z_depth], cursor_tpage);
-    nextpri += sizeof(DR_TPAGE);
+    // cursor_tpage = (DR_TPAGE *)nextpri;
+    // SetDrawTPage(cursor_tpage, 0, 1, GetTPage(cursor_image.mode & 0x3, 0, cursor_image.prect->x, cursor_image.prect->y));
+
+    // AddPrim(&ot[db][z_depth], cursor_tpage);
+    // nextpri += sizeof(DR_TPAGE);
+    z_depth--;
 }
 
 void GUI_DrawWindow(Window window)
@@ -100,6 +112,19 @@ void GUI_DrawWindow(Window window)
     nextpri += sizeof(TILE);
     z_depth--;
     // Border box
+
+    // Background box
+    tile = (TILE *)nextpri;
+    setTile(tile);
+    setRGB0(tile, theme.Foreground.R, theme.Foreground.G, theme.Foreground.B);
+    tile->x0 = window.rect.x + 1;
+    tile->y0 = window.rect.y + 10;
+    tile->w = window.rect.w - 2;
+    tile->h = window.rect.h - 11;
+    addPrim(&ot[db][z_depth], tile); // add poly to the Ordering table
+    nextpri += sizeof(TILE);
+    z_depth--;
+    // Background box
 
     // Title Box
     tile = (TILE *)nextpri;
@@ -129,19 +154,6 @@ void GUI_DrawWindow(Window window)
 
     // Minimize window button = ^
     DrawChar('^', window.rect.x + 2, window.rect.y + 4);
-
-    // Background box
-    tile = (TILE *)nextpri;
-    setTile(tile);
-    setRGB0(tile, theme.Foreground.R, theme.Foreground.G, theme.Foreground.B);
-    tile->x0 = window.rect.x + 1;
-    tile->y0 = window.rect.y + 10;
-    tile->w = window.rect.w - 2;
-    tile->h = window.rect.h - 11;
-    addPrim(&ot[db][z_depth], tile); // add poly to the Ordering table
-    nextpri += sizeof(TILE);
-    z_depth--;
-    // Background box
 }
 
 void GUI_InitCursor(void)
@@ -203,31 +215,28 @@ short WhichWindow(RECT rect)
     {
         if (windows[i].visible)
         {
-            if (CheckCollision(rect, windows[i].rect))
+            /*if (CheckCollision(rect, windows[i].rect))
             {
                 return i;
-            }
+            }*/
         }
     }
     return -1;
 }
-{
 
-}
-
-void MoveToFront(char* item_list, int count, int index)
+void MoveToFront(char *item_list, int count, int index)
 {
     char temp;
-    
-    if(count == 0 || index == 0 || index >= count)
+
+    if (count == 0 || index == 0 || index >= count)
         return; // derp?
 
     temp = item_list[index];
-    
-    for(int i = index; i > 0; i--)
+
+    for (int i = index; i > 0; i--)
     {
-        item_list[i] = item_list[i-1];
+        item_list[i] = item_list[i - 1];
     }
-    
+
     item_list[0] = temp;
 }

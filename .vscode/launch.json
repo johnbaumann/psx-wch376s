@@ -3,9 +3,8 @@
     "configurations": [
         {
             "type": "gdb",
-            "request": "launch",
+            "request": "attach",
             "name": "(gdb) Debug",
-            "target": "./wch376s-demo.elf",
             "linux": {
                 "gdbpath": "/usr/bin/gdb-multiarch",
             },
@@ -13,14 +12,17 @@
                 "gdbpath": "C:/gdb-multiarch/bin/gdb.exe",
             },
             "cwd": "${workspaceFolder}",
+            "target": "localhost:8888",
+            "remote": true,
+            "stopAtConnect": true,
+            "executable": "${workspaceFolder}/wch376s-demo.elf",
             "autorun": [
                 "set remote interrupt-sequence Ctrl-C",
-                "target remote localhost:3333",
                 "set substitute-path /project .",
-                "monitor reset shellhalt",
+                //"monitor reset shellhalt",
                 "load ./wch376s-demo.elf",
                 "tbreak main",
-                "continue",
+                //"continue",
             ],
             "valuesFormatting": "parseText"
         }

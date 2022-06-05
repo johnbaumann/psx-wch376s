@@ -37,6 +37,14 @@ char *nextpri = primbuff[0];
 SPRT *sprt_4b;
 DR_TPAGE *tpage_4b;
 
+typedef struct {
+    uint16_t x;
+    uint16_t y;
+} point_t;
+
+point_t font_offsets[128];
+
+
 bool IsInBound(RECT container, RECT item)
 {
     if (item.x >= container.x && item.x + item.w <= container.x + container.w && item.y >= container.y && item.y + item.h <= container.y + container.h)
@@ -48,20 +56,20 @@ bool IsInBound(RECT container, RECT item)
 
 void FontTPage()
 {
-    nextpri += sizeof(SPRT);
-    tpage_4b = (DR_TPAGE *)nextpri;
-    SetDrawTPage(tpage_4b, 0, 1, getTPage(font_image.mode & 0x3, 0, font_image.prect->x, font_image.prect->y));
-    
-    AddPrim(&ot[db][z_depth], tpage_4b);
-    nextpri += sizeof(DR_TPAGE);
+    int32_t font_tpage = getTPage(font_image.mode & 0x3, 0, font_image.prect->x, font_image.prect->y);
+    if (current_tpage != font_tpage)
+    {
+        tpage_4b = (DR_TPAGE *)nextpri;
+        SetDrawTPage(tpage_4b, 0, 1, font_tpage);
+
+        AddPrim(&ot[db][z_depth], tpage_4b);
+        nextpri += sizeof(DR_TPAGE);
+    }
 }
 
 void DrawChar(uint8_t character, int x_pos, int y_pos)
 {
     uint16_t glyph_index;
-
-    uint16_t glyph_x;
-    uint16_t glyph_y;
 
     if (character < 32 || character > 126)
     {
@@ -72,18 +80,15 @@ void DrawChar(uint8_t character, int x_pos, int y_pos)
         glyph_index = (character - 32);
     }
 
-    glyph_x = (glyph_index % 19) * 8;
-    glyph_y = (glyph_index / 19) * 8;
-
     sprt_4b = (SPRT *)nextpri;
     SetSprt(sprt_4b);
     setRGB0(sprt_4b, 128, 128, 128);
     setXY0(sprt_4b, x_pos, y_pos);
     setWH(sprt_4b, 8, 8);
-    setUV0(sprt_4b, glyph_x, glyph_y);
+    setUV0(sprt_4b, font_offsets[glyph_index].x, font_offsets[glyph_index].y);
     setClut(sprt_4b, font_image.crect->x, font_image.crect->y);
     AddPrim(&ot[db][z_depth], sprt_4b);
-    FontTPage();
+    nextpri += sizeof(SPRT);
 }
 
 void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, uint16_t draw_width, uint16_t draw_height, bool auto_wrap)
@@ -100,10 +105,13 @@ void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, uint16_t dra
             continue;
         }
 
-        if (auto_wrap && ((_x + GLYPH_WIDTH) >= x_pos + draw_width))
+        if (auto_wrap)
         {
-            _y += GLYPH_HEIGHT + 1;
-            _x = x_pos;
+            if (_x + GLYPH_WIDTH >= x_pos + draw_width)
+            {
+                _y += GLYPH_HEIGHT + 1;
+                _x = x_pos;
+            }
         }
 
         if (_x + GLYPH_WIDTH < x_pos + draw_width && _y + GLYPH_HEIGHT < y_pos + draw_height)
@@ -117,6 +125,12 @@ void DrawMessage(const char *message, int32_t x_pos, int32_t y_pos, uint16_t dra
 void InitFont(void)
 {
     LoadTexture(font_data, &font_image);
+
+    for(int i=0; i < 94; i++)
+    {
+        font_offsets[i].x = i % 19 * 8;
+        font_offsets[i].y = i / 19 * 8;
+    }
 }
 
 void InitGraphics(void)
@@ -170,10 +184,9 @@ void display(void)
 {
     char menu_glyph = ' ';
     char print_buffer[64];
-    z_depth = OTLEN - 1;
 
     ClearOTagR(ot[db], OTLEN);
-
+    FontTPage();
     GUI_DrawAllWindows();
 
     DrawSync(0);
@@ -181,8 +194,10 @@ void display(void)
     PutDispEnv(&disp[db]);
     PutDrawEnv(&draw[db]);
     DrawOTag(&ot[db][OTLEN - 1]);
+
     db = !db;
     nextpri = primbuff[db];
+    z_depth = OTLEN - 1;
 }
 
 void LoadTexture(u_long *tim_data, TIM_IMAGE *tim_image)
@@ -196,7 +211,7 @@ void LoadTexture(u_long *tim_data, TIM_IMAGE *tim_image)
     // Clut
     if (tim_image->mode & 0x8)
     {
-        // LoadClut(tim_image.caddr, tim_image.crect->x, tim_image.crect->y);
+        // LoadClut(tim_image->caddr, tim_image->crect->x, tim_image->crect->y);
         LoadImage(tim_image->crect, tim_image->caddr);
         DrawSync(0);
     }
