@@ -43,7 +43,7 @@ void GUI_DrawAllWindows(void)
         case 0:
         case 1:
         case 2:
-            //DrawMessage("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus elementum lorem a massa egestas, id rhoncus eros semper.", windows[i].rect.x + 2, windows[i].rect.y + 12, windows[i].rect.w - 4, windows[i].rect.h - 14, true);
+            DrawMessage("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus elementum lorem a massa egestas, id rhoncus eros semper.", windows[i].rect.x + 2, windows[i].rect.y + 12, windows[i].rect.w - 4, windows[i].rect.h - 14, true);
             // DrawMessage("Test.", windows[i].rect.x + 2, windows[i].rect.y + 12, windows[i].rect.w - 4, windows[i].rect.h - 14, true);
             break;
 
